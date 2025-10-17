@@ -1,8 +1,12 @@
 <?php
+
 // Archivo de conexión (deberías incluir tu archivo de conexión aquí)
 include 'bdd/database.php';
 
 // Iniciar sesión
+
+include 'bdd/database.php';
+
 session_start();
 if (!isset($_SESSION['id_usuario'])) {
     header("Location: index.php");
@@ -11,7 +15,11 @@ if (!isset($_SESSION['id_usuario'])) {
 
 $id_usuario = $_SESSION['id_usuario'];
 
+
 // Obtener el rol del usuario actual
+
+// Obtener datos del usuario
+
 $sql = "SELECT U.NOMBRE, U.APELLIDO, R.ROL 
         FROM USUARIO U 
         JOIN ROL R ON U.ID_ROL = R.ID_ROL 
@@ -20,7 +28,7 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute([$id_usuario]);
 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Nombre y rol del usuario actual
+
 $nombre_usuario = $row['NOMBRE'] . ' ' . $row['APELLIDO'];
 $rol = $row['ROL'];
 
@@ -36,13 +44,48 @@ try {
 
     // Obtener los resultados
     $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 } catch (PDOException $e) {
-    echo "Error al realizar la consulta: " . $e->getMessage();
+    echo "Error al realizar la consulta (primer query): " . $e->getMessage();
+    // Si quieres detener ejecución:
+    // exit();
+}
+
+// ===============================================
+// OBTENER PROYECTOS, NOTAS Y FONDOS PIVOTEADOS
+// ===============================================
+try {
+    $stmt = $pdo->query("
+        SELECT N.ID_NFINAL, P.PROYECTO, N.NOTA_FINAL, PR.PREMIO
+        FROM NFINAL N
+        JOIN PROYECTO P ON N.ID_PROYECTO = P.ID_PROYECTO
+        LEFT JOIN PREMIO_NFINAL PN ON N.ID_NFINAL = PN.ID_NFINAL
+        LEFT JOIN PREMIO PR ON PN.ID_PREMIO = PR.ID_PREMIO
+    ");
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Pivotar fondos por proyecto
+    $proyectos = [];
+    $maxFondos = 0;
+    foreach ($rows as $r) {
+        $id = $r['ID_NFINAL'];
+        if (!isset($proyectos[$id])) {
+            $proyectos[$id] = [
+                'PROYECTO' => $r['PROYECTO'],
+                'NOTA_FINAL' => $r['NOTA_FINAL'],
+                'FONDOS' => []
+            ];
+        }
+        if ($r['PREMIO'] !== null) {
+            $proyectos[$id]['FONDOS'][] = $r['PREMIO'];
+            $maxFondos = max($maxFondos, count($proyectos[$id]['FONDOS']));
+        }
+    }
+
+} catch (PDOException $e) {
+    echo "Error al realizar la consulta (pivot): " . $e->getMessage();
 }
 ?>
-
-
-
 <!DOCTYPE html>
 <html lang="en">
 
@@ -66,10 +109,21 @@ try {
         rel="stylesheet">
 
     <!-- Vendor CSS Files -->
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Fondos Asignados - Panel Jurado</title>
+
+    <link href="assets/img/favicon.png" rel="icon">
+
     <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
     <link href="assets/vendor/boxicons/css/boxicons.min.css" rel="stylesheet">
     <link href="assets/vendor/quill/quill.snow.css" rel="stylesheet">
+
     <link href="assets/vendor/quill/quill.bubble.css" rel="stylesheet">
     <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
     <link href="assets/vendor/simple-datatables/style.css" rel="stylesheet">
@@ -81,6 +135,27 @@ try {
 <body>
 
     <!-- ======= Header ======= -->
+
+    <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
+    <link href="assets/vendor/simple-datatables/style.css" rel="stylesheet">
+    <link href="assets/css/style.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        th, td { text-align: center; vertical-align: middle; }
+        .sidebar.active { width: 80px; transition: width 0.3s; }
+        .main.active { margin-left: 80px; transition: margin-left 0.3s; }
+        .btn-modify { 
+            border: none; 
+            background: none; 
+            cursor: pointer; 
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ======= Header ======= -->
+
     <header id="header" class="header fixed-top d-flex align-items-center">
 
         <div class="d-flex align-items-center justify-content-between">
@@ -91,10 +166,14 @@ try {
         </div><!-- End Logo -->
 
 
+
         <nav class="header-nav ms-auto">
             <ul class="d-flex align-items-center">
 
                 </li><!-- End Messages Nav -->
+
+        <nav class="header-nav ms-auto">
+            <ul class="d-flex align-items-center">
 
                 <li class="nav-item dropdown pe-3">
 
@@ -156,9 +235,15 @@ try {
                 <ul id="evaluacion-nav" class="nav-content collapse" data-bs-parent="#sidebar-nav">
                     <!-- Aquí se cargarán dinámicamente las actividades -->
                     <?php
+
                     include 'bdd/database.php'; // Asegúrate de tener una conexión PDO en este archivo
 
                     $sql = "SELECT ID_ACTIVIDAD, NOM_ACTIVIDAD, PORCENTAJE FROM ACTIVIDAD"; // Ajusta el nombre de la tabla y los campos según tu base de datos
+
+                    include 'bdd/database.php';
+
+                    $sql = "SELECT ID_ACTIVIDAD, NOM_ACTIVIDAD, PORCENTAJE FROM ACTIVIDAD";
+
                     $stmt = $pdo->prepare($sql);
                     $stmt->execute();
                     $actividades = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -199,6 +284,7 @@ try {
                         </a>
                     </li>
 
+
                 </ul>
             </li><!-- End Components Nav -->
 
@@ -208,6 +294,7 @@ try {
                     <span>Asignar Fondos</span>
                 </a>
 
+
             </li><!-- End Icons Nav -->
 
             <li class="nav-item">
@@ -215,6 +302,7 @@ try {
                     <i class="bi bi-gem"></i>
                     <span>Fondos asignados</span>
                 </a>
+
 
             </li><!-- End Icons Nav -->
 
@@ -367,4 +455,110 @@ try {
 
 </body>
 
+<main id="main" class="main">
+    <div class="pagetitle">
+        <h1>Fondos asignados</h1>
+        <nav>
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="panel_juradop.php">Inicio</a></li>
+                <li class="breadcrumb-item active">Fondos asignados</li>
+            </ol>
+        </nav>
+    </div>
+
+    <section class="section dashboard">
+        <div class="row">
+            <div class="col-lg-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Fondos asignados <span> | Resultados Finales</span></h5>
+
+                        <table class="table table-bordered" style="text-align: center;">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Proyecto</th>
+                                    <th scope="col">
+                                        Nota Final
+                                        <button class="btn btn-primary btn-sm" data-order="asc" type="button" onclick="ordenarNotas()" style="margin-left:5px;">
+                                            <i class="fas fa-sort-amount-down"></i>
+                                        </button>
+                                    </th>
+                                    <?php for($i=1;$i<=$maxFondos;$i++): ?>
+                                        <th scope="col">Beneficio <?php echo $i ?></th>
+                                    <?php endfor; ?>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach($proyectos as $p): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($p['PROYECTO']); ?></td>
+                                    <td><?php echo htmlspecialchars($p['NOTA_FINAL']); ?></td>
+                                    <?php
+                                    for($i=0;$i<$maxFondos;$i++):
+                                        echo '<td style="text-align:center;">'.($p['FONDOS'][$i] ?? '—').'</td>';
+                                    endfor;
+                                    ?>
+                                </tr>
+                                <?php endforeach; ?>
+                                <?php if(empty($proyectos)): ?>
+                                <tr>
+                                    <td colspan="<?php echo 2 + $maxFondos; ?>">No hay datos disponibles</td>
+                                </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<footer id="footer" class="footer">
+    <div class="copyright">
+        &copy; Copyright <strong><span>Ayudando a quienes ayudan</span></strong>. Todos los derechos reservados.
+    </div>
+</footer>
+
+<script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="assets/vendor/jquery/jquery.min.js"></script>
+<script src="assets/vendor/simple-datatables/simple-datatables.js"></script>
+<script src="assets/vendor/quill/quill.min.js"></script>
+<script src="assets/js/main.js"></script>
+
+<script>
+    function ordenarNotas() {
+        var button = document.querySelector('.btn-primary');
+        var order = button.getAttribute('data-order');
+        var table = document.querySelector('.table-bordered tbody');
+        var rows = Array.from(table.querySelectorAll('tr'));
+
+        // Filtrar filas que no sean el mensaje de "No hay datos"
+        rows = rows.filter(row => !row.querySelector('td').innerText.includes('No hay datos'));
+
+        rows.sort(function(rowA, rowB) {
+            var notaA = parseFloat(rowA.querySelector('td:nth-child(2)').innerText) || 0;
+            var notaB = parseFloat(rowB.querySelector('td:nth-child(2)').innerText) || 0;
+            return order === 'asc' ? notaA - notaB : notaB - notaA;
+        });
+
+        table.innerHTML = "";
+        rows.forEach(r => table.appendChild(r));
+
+        if (order === 'asc') {
+            button.setAttribute('data-order', 'desc');
+            button.querySelector('i').classList.replace('fa-sort-amount-down', 'fa-sort-amount-up');
+        } else {
+            button.setAttribute('data-order', 'asc');
+            button.querySelector('i').classList.replace('fa-sort-amount-up', 'fa-sort-amount-down');
+        }
+    }
+
+    document.querySelector('.toggle-sidebar-btn').addEventListener('click', function() {
+        document.getElementById('sidebar').classList.toggle('active');
+        document.getElementById('main').classList.toggle('active');
+    });
+</script>
+</body>
 </html>

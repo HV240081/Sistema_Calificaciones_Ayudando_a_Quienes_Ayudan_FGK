@@ -39,6 +39,7 @@ $id_proyecto = null;
 $permiso_actividad = null;
 $actividad_porcentaje = null; // --- CAMBIO: almacenar porcentaje de la actividad
 
+
 // Verifica si se ha recibido un ID de actividad en la URL
 if (isset($_GET['id'])) {
   $id_actividad = $_GET['id'];
@@ -56,6 +57,7 @@ if (isset($_GET['id'])) {
   if (!empty($criterios)) {
     $permiso_actividad = $criterios[0]['ID_PERMISO']; // Asumiendo que la actividad tiene un permiso único
   }
+
 
   // --- CAMBIO: obtener también el porcentaje de la actividad
   $sqlPorcentaje = "SELECT PORCENTAJE FROM ACTIVIDAD WHERE ID_ACTIVIDAD = :ID_ACTIVIDAD";
@@ -102,7 +104,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $id_usuario = $_POST['idUsuario'];  // El ID del usuario que está calificando
   $id_proyecto = $_POST['idProyecto'];  // El ID del proyecto que se está calificando
   $notas = $_POST['notas'];  // Las notas dadas por el usuario a los criterios
+
   $comentario = $_POST['comentario'] ?? '';  // Comentario opcional
+
   $id_nota_criterios = [];  // Para almacenar los IDs de las notas insertadas
   $total_calificacion_proyecto = 0;  // Suma de la calificación ponderada de cada criterio
   $total_porcentaje_proyecto = 0;  // Suma del porcentaje de cada criterio
@@ -114,25 +118,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   // Verificar si el usuario ya calificó este proyecto
-    $sql = "SELECT COUNT(*) FROM NOTA_CRITERIO NC
+  $sql = "SELECT COUNT(*) FROM NOTA_CRITERIO NC
         JOIN NOTA_CRITERIO_CALIFICACION NCC ON NC.ID_NOTACRITERIO = NCC.ID_NOTA_CRITERIO
         JOIN CALIFICACION C ON NCC.ID_CALIFICACION = C.ID_CALIFICACION
         WHERE NC.ID_USUARIO = :ID_USUARIO 
         AND C.ID_PROYECTO = :ID_PROYECTO
         AND C.ID_ACTIVIDAD = :ID_ACTIVIDAD";
-$stmt = $pdo->prepare($sql);
-$stmt->execute([
-    'ID_USUARIO' => $id_usuario,
-    'ID_PROYECTO' => $id_proyecto,
-    'ID_ACTIVIDAD' => $id_actividad
-]);
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute([
+      'ID_USUARIO' => $id_usuario,
+      'ID_PROYECTO' => $id_proyecto,
+      'ID_ACTIVIDAD' => $id_actividad
+  ]);
 
-$alreadyRated = $stmt->fetchColumn();
+  $alreadyRated = $stmt->fetchColumn();
 
-if ($alreadyRated > 0) {
-    header('Location: calificarAdmin.php?id=' . $id_actividad . '&error=already_rated');
-    exit;
-}
+  if ($alreadyRated > 0) {
+      header('Location: calificarAdmin.php?id=' . $id_actividad . '&error=already_rated');
+      exit;
+  }
 
   // Verificar token CSRF para evitar ataques cross-site
   if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
@@ -204,7 +208,6 @@ if ($alreadyRated > 0) {
       $result_admin = $stmt_admin->fetch(PDO::FETCH_ASSOC);
       $promedio_admin = $result_admin['PROMEDIO_ADMIN'] ? $result_admin['PROMEDIO_ADMIN'] : 0;
 
-
       // Obtener el promedio de calificación de los jurados
       $sql_jurado = "SELECT SUM(DISTINCT C.CALIFICACION * (A.PORCENTAJE / 100)) AS PROMEDIO_JURADO
                FROM CALIFICACION C
@@ -223,10 +226,8 @@ if ($alreadyRated > 0) {
       $promedio_jurado = $result_jurado['PROMEDIO_JURADO'] ? $result_jurado['PROMEDIO_JURADO'] : 0;
       // Si no hay calificaciones, establece a 0
 
-
       // Calcular la calificación final sumando ambos promedios
       $calificacion_final = ($promedio_admin + $promedio_jurado); // El / 100 ya fue hecho en la consulta
-
 
       // Guardar en la tabla NOTAS
       $sql_insert = "INSERT INTO NOTAS (ID_USUARIO, ID_PROYECTO, COMENTARIOS, CALIFICACION, ID_CALIFICACION) 
@@ -242,7 +243,6 @@ if ($alreadyRated > 0) {
 
       // Almacenar el último ID insertado
       $id_nota = $pdo->lastInsertId(); // Esto debe realizarse en la consulta correspondiente a NOTA_CRITERIO
-
 
       $sql_suma_calificaciones = "SELECT SUM(CALIFICACION) AS SUMA_CALIFICACIONES, COUNT(*) AS CANTIDAD_USUARIOS
                                 FROM NOTAS  
@@ -361,7 +361,6 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
       $suma_calificaciones = $result_suma['SUMA_CALIFICACIONES'] ?? 0;
       $cantidad_usuarios = $result_suma['CANTIDAD_USUARIOS'] ?? 1; // Evitar división por cero
 
-
       if ($cantidad_usuarios > 0) {
         $promedio_final = $suma_calificaciones / $cantidad_usuarios;
 
@@ -457,13 +456,7 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
 
     <nav class="header-nav ms-auto">
       <ul class="d-flex align-items-center">
-
-        </li><!-- End Messages Nav -->
-
         <li class="nav-item dropdown pe-3">
-
-        <li class="nav-item dropdown pe-3">
-
           <a class="nav-link nav-profile d-flex align-items-center pe-0" href="#" data-bs-toggle="dropdown">
             <span class="d-none d-md-block dropdown-toggle ps-2"><?php echo $nombre_usuario; ?></span>
           </a><!-- End Profile Iamge Icon -->
@@ -494,21 +487,15 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
                 <span>Cerrar Sesion</span>
               </a>
             </li>
-
           </ul><!-- End Profile Dropdown Items -->
         </li><!-- End Profile Nav -->
-
       </ul>
     </nav><!-- End Icons Navigation -->
-
   </header><!-- End Header -->
-
 
   <!-- ======= Sidebar ======= -->
   <aside id="sidebar" class="sidebar">
-
     <ul class="sidebar-nav" id="sidebar-nav">
-
       <li class="nav-item">
         <a class="nav-link collapsed" href="panel_admin.php">
           <i class="bi bi-grid"></i>
@@ -535,14 +522,13 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
           <i class="bi bi-gem"></i>
           <span>Fondos</span>
         </a>
-
       </li><!-- End Icons Nav -->
 
-      <li class="nav-item"></li>
-      <a class="nav-link collapsed" href="addactivities.php">
-        <i class="bi bi-search"></i>
-        <span>Actividades</span>
-      </a>
+      <li class="nav-item">
+        <a class="nav-link collapsed" href="addactivities.php">
+          <i class="bi bi-search"></i>
+          <span>Actividades</span>
+        </a>
       </li><!-- End Activities Page Nav -->
 
       <li class="nav-item">
@@ -565,7 +551,6 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
               <i class="bi bi-circle"></i><span>Resultados Globales</span>
             </a>
           </li>
-
         </ul>
       </li><!-- End Components Nav -->
 
@@ -598,7 +583,6 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
         </ul>
       </li><!-- End Evaluación Nav -->
 
-
       <li class="nav-item">
         <a class="nav-link collapsed" href="users-profileadmin.php">
           <i class="bi bi-person"></i>
@@ -613,7 +597,6 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
         </a>
       </li><!-- End F.A.Q Page Nav -->
     </ul>
-
   </aside><!-- End Sidebar-->
 
   <main id="main" class="main">
@@ -627,7 +610,37 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
       </nav>
     </div><!-- End Page Title -->
 
-   
+    <!-- Inicio de la rúbrica del criterio -->
+    <section class="section dashboard">
+      <div class="row">
+        <div class="col-12">
+          <div class="card recent-sales overflow-auto">
+            <div class="card-body">
+              <h5 class="card-title">Rúbrica de criterio <span></span></h5>
+
+              <div class="row mb-5">
+                <?php if ($criterios): ?>
+                  <?php foreach ($criterios as $criterio): ?>
+                    <div class="col-md-4 d-flex">
+                      <div class="card h-100">
+                        <div class="card-body">
+                          <h5 class="card-title"><?php echo htmlspecialchars($criterio['CRITERIO']); ?></h5>
+                          <p><?php echo htmlspecialchars($criterio['DESCRIPCION']); ?></p>
+                          <p>Ponderación: <?php echo htmlspecialchars($criterio['PORCENTAJE']); ?>%</p>
+                        </div>
+                      </div>
+                    </div>
+                  <?php endforeach; ?>
+                <?php else: ?>
+                  <p>No hay criterios disponibles para esta actividad o proyecto.</p>
+                <?php endif; ?>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="section dashboard">
       <div class="row">
         <div class="col-12">
@@ -715,113 +728,110 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
               <h5 class="card-title">Proyectos Calificados/Pendientes</h5>
               
               <?php if ($permiso_tabla): ?>
-                                <div class="table-responsive">
-                                    <?php
-                                    // Preparar la consulta SQL con PDO
-                                    $query = "
-                                             SELECT 
-                                                  p.ID_PROYECTO,
-                                                  p.PROYECTO, 
-                                                  c.ID_CALIFICACION, 
-                                                  c.ID_ACTIVIDAD,
-                                                  nc.NOTA,
-                                                  nc.ID_CRITERIO,
-                                                  c.CALIFICACION AS CALIFICACION_FINAL,
-                                                  n.COMENTARIOS
-                                              FROM PROYECTO p
-                                              LEFT JOIN CALIFICACION c ON p.ID_PROYECTO = c.ID_PROYECTO
-                                              LEFT JOIN NOTA_CRITERIO_CALIFICACION ncc ON c.ID_CALIFICACION = ncc.ID_CALIFICACION
-                                              LEFT JOIN NOTA_CRITERIO nc ON ncc.ID_NOTA_CRITERIO = nc.ID_NOTACRITERIO
-                                              LEFT JOIN NOTAS n ON c.ID_CALIFICACION = n.ID_CALIFICACION
-                                              LEFT JOIN USUARIO u ON nc.ID_USUARIO = u.ID_USUARIO
-                                              WHERE u.ID_ROL = 1
-                                              ORDER BY p.ID_PROYECTO
-                                                ";
+                <div class="table-responsive">
+                  <?php
+                  // Preparar la consulta SQL con PDO
+                  $query = "SELECT 
+                            p.ID_PROYECTO,
+                            p.PROYECTO, 
+                            c.ID_CALIFICACION, 
+                            c.ID_ACTIVIDAD,
+                            nc.NOTA,
+                            nc.ID_CRITERIO,
+                            c.CALIFICACION AS CALIFICACION_FINAL,
+                            n.COMENTARIOS
+                          FROM PROYECTO p
+                          LEFT JOIN CALIFICACION c ON p.ID_PROYECTO = c.ID_PROYECTO
+                          LEFT JOIN NOTA_CRITERIO_CALIFICACION ncc ON c.ID_CALIFICACION = ncc.ID_CALIFICACION
+                          LEFT JOIN NOTA_CRITERIO nc ON ncc.ID_NOTA_CRITERIO = nc.ID_NOTACRITERIO
+                          LEFT JOIN NOTAS n ON c.ID_CALIFICACION = n.ID_CALIFICACION
+                          LEFT JOIN USUARIO u ON nc.ID_USUARIO = u.ID_USUARIO
+                          WHERE u.ID_ROL = 1
+                          ORDER BY p.ID_PROYECTO";
 
-                                    // Ejecutar la consulta
-                                    $stmt = $pdo->prepare($query);
-                                    $stmt->execute();
-                                    $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                  // Ejecutar la consulta
+                  $stmt = $pdo->prepare($query);
+                  $stmt->execute();
+                  $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-                                    // Array para organizar los datos por proyecto
-                                    $proyectos_tabla = [];
+                  // Array para organizar los datos por proyecto
+                  $proyectos_tabla = [];
 
-                                    foreach ($resultados as $row) {
-                                        $proyecto = $row['PROYECTO'];
+                  foreach ($resultados as $row) {
+                    $proyecto = $row['PROYECTO'];
 
-                                        // Inicializar el proyecto si no existe en el array
-                                        if (!isset($proyectos_tabla[$proyecto])) {
-                                            $proyectos_tabla[$proyecto] = [
-                                                'id_calificacion' => $row['ID_CALIFICACION'],
-                                                'id_proyecto' => $row['ID_PROYECTO'],
-                                                'id_actividad' => $row['ID_ACTIVIDAD'],
-                                                'notas_criterios' => [],
-                                                'calificacion_final' => $row['CALIFICACION_FINAL'],
-                                                'comentarios' => $row['COMENTARIOS']
-                                            ];
-                                        }
+                    // Inicializar el proyecto si no existe en el array
+                    if (!isset($proyectos_tabla[$proyecto])) {
+                      $proyectos_tabla[$proyecto] = [
+                        'id_calificacion' => $row['ID_CALIFICACION'],
+                        'id_proyecto' => $row['ID_PROYECTO'],
+                        'id_actividad' => $row['ID_ACTIVIDAD'],
+                        'notas_criterios' => [],
+                        'calificacion_final' => $row['CALIFICACION_FINAL'],
+                        'comentarios' => $row['COMENTARIOS']
+                      ];
+                    }
 
-                                        // Añadir la nota del criterio al proyecto
-                                        if ($row['ID_CRITERIO']) {
-                                            $proyectos_tabla[$proyecto]['notas_criterios'][$row['ID_CRITERIO']] = $row['NOTA'];
-                                        }
-                                    }
+                    // Añadir la nota del criterio al proyecto
+                    if ($row['ID_CRITERIO']) {
+                      $proyectos_tabla[$proyecto]['notas_criterios'][$row['ID_CRITERIO']] = $row['NOTA'];
+                    }
+                  }
 
-                                    // Renderizar las filas de la tabla
-                                    ?>
-                                    <table class="table table-bordered text-center">
-                                        <thead>
-                                            <tr id="criteriosHeader">
-                                                <th scope="col">Proyecto</th>
-                                                <?php foreach ($criterios_mostrar as $criterio): ?>
-                                                    <th scope="col"><?php echo htmlspecialchars($criterio['CRITERIO']); ?></th>
-                                                <?php endforeach; ?>
-                                                <?php if ($actividad_porcentaje !== 30): // Solo mostrar Nota Final si NO es 30% ?>
-                                                  <th scope="col">Nota Final</th>
-                                                <?php endif; ?>
-                                                <th scope="col">Acciones</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="statusTable">
-                                            <?php foreach ($proyectos_tabla as $nombreProyecto => $detalles): ?>
-                                                <tr>
-                                                    <td><?php echo htmlspecialchars($nombreProyecto); ?></td>
+                  // Renderizar las filas de la tabla
+                  ?>
+                  <table class="table table-bordered text-center">
+                    <thead>
+                      <tr id="criteriosHeader">
+                        <th scope="col">Proyecto</th>
+                        <?php foreach ($criterios_mostrar as $criterio): ?>
+                          <th scope="col"><?php echo htmlspecialchars($criterio['CRITERIO']); ?></th>
+                        <?php endforeach; ?>
+                        <?php if ($actividad_porcentaje !== 30): // Solo mostrar Nota Final si NO es 30% ?>
+                          <th scope="col">Nota Final</th>
+                        <?php endif; ?>
+                        <th scope="col">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody id="statusTable">
+                      <?php foreach ($proyectos_tabla as $nombreProyecto => $detalles): ?>
+                        <tr>
+                          <td><?php echo htmlspecialchars($nombreProyecto); ?></td>
 
-                                                    <!-- Mostrar las notas de los criterios -->
-                                                    <?php foreach ($criterios_mostrar as $criterio): ?>
-                                                        <?php
-                                                        // Mostrar la nota si existe, de lo contrario 'N/A'
-                                                        $nota = isset($detalles['notas_criterios'][$criterio['ID_CRITERIO']]) ? $detalles['notas_criterios'][$criterio['ID_CRITERIO']] : 'N/A';
-                                                        ?>
-                                                        <td><?php echo htmlspecialchars($nota); ?></td>
-                                                    <?php endforeach; ?>
+                          <!-- Mostrar las notas de los criterios -->
+                          <?php foreach ($criterios_mostrar as $criterio): ?>
+                            <?php
+                            // Mostrar la nota si existe, de lo contrario 'N/A'
+                            $nota = isset($detalles['notas_criterios'][$criterio['ID_CRITERIO']]) ? $detalles['notas_criterios'][$criterio['ID_CRITERIO']] : 'N/A';
+                            ?>
+                            <td><?php echo htmlspecialchars($nota); ?></td>
+                          <?php endforeach; ?>
 
-                                                    <!-- Mostrar la calificación final -->
-                                                    <?php if ($actividad_porcentaje !== 30): ?>
-                                                      <td>
-                                                          <?php echo htmlspecialchars($detalles['calificacion_final'] ? $detalles['calificacion_final'] : 'N/A'); ?>
-                                                      </td>
-                                                    <?php endif; ?>
+                          <!-- Mostrar la calificación final -->
+                          <?php if ($actividad_porcentaje !== 30): ?>
+                            <td>
+                              <?php echo htmlspecialchars($detalles['calificacion_final'] ? $detalles['calificacion_final'] : 'N/A'); ?>
+                            </td>
+                          <?php endif; ?>
 
-                                                    <!-- Botones de acción (modificar o agregar) -->
-                                                    <td>
-                                                        <a href="calificarAdmin.php?delete=<?php echo htmlspecialchars($detalles['id_calificacion']); ?>&id_proyecto=<?php echo htmlspecialchars($detalles['id_proyecto']); ?>&id_actividad=<?php echo htmlspecialchars($detalles['id_actividad']); ?>"
-                                                            class="btn btn-danger btn-sm"
-                                                            onclick="return confirm('¿Estás seguro de eliminar esta actividad?')">
-                                                            <i class='fas fa-trash-alt'></i>
-                                                        </a>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-
-                                </div>
-                            <?php else: ?>
-                                <div class="table-responsive">
-                                    <p>Dirigase a resultados individuales</p>
-                                </div>
-
-                            <?php endif; ?>
+                          <!-- Botones de acción (modificar o agregar) -->
+                          <td>
+                            <a href="calificarAdmin.php?delete=<?php echo htmlspecialchars($detalles['id_calificacion']); ?>&id_proyecto=<?php echo htmlspecialchars($detalles['id_proyecto']); ?>&id_actividad=<?php echo htmlspecialchars($detalles['id_actividad']); ?>"
+                              class="btn btn-danger btn-sm"
+                              onclick="return confirm('¿Estás seguro de eliminar esta actividad?')">
+                              <i class='fas fa-trash-alt'></i>
+                            </a>
+                          </td>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
+              <?php else: ?>
+                <div class="table-responsive">
+                  <p>Dirigase a resultados individuales</p>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
         </div>
@@ -829,9 +839,8 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
     </section>
   </main>
 
-
-   <!-- ======= Footer ======= -->
-   <footer id="footer" class="footer">
+  <!-- ======= Footer ======= -->
+  <footer id="footer" class="footer">
     <div class="copyright">
       &copy; Copyright <strong><span>Ayudando a quienes ayudan</span></strong>. Todos los derechos reservados.
     </div>
@@ -861,26 +870,21 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
 
       // Mostrar los criterios con campos para notas
       const row = document.createElement('tr');
-
-      // --- NOTA: el HTML siguiente contiene PHP embebido que ya fue procesado en servidor,
-      // por lo que al hacer DOM insertion en cliente, lo que incluimos debe coincidir con los criterios_mostrar
       row.innerHTML = `
-                <td>${nombreProyecto}</td>
-                <?php foreach ($criterios_mostrar as $criterio): ?>
-                                    <td><input type="number" name="notas[<?php echo $criterio['ID_CRITERIO']; ?>]" placeholder="Nota" class="form-control" min="0" max="10" step="0.01" required></td>
-                <?php endforeach; ?>
-            `;
+        <td>${nombreProyecto}</td>
+        <?php foreach ($criterios_mostrar as $criterio): ?>
+          <td><input type="number" name="notas[<?php echo $criterio['ID_CRITERIO']; ?>]" placeholder="Nota" class="form-control" min="0" max="10" step="0.01" required></td>
+        <?php endforeach; ?>
+      `;
       criteriosBody.appendChild(row);
-
     }
   </script>
-<script>
-  document.querySelector('.toggle-sidebar-btn').addEventListener('click', function() {
-    document.getElementById('sidebar').classList.toggle('active');
-    document.getElementById('main').classList.toggle('active');
-  });
-</script>
-
+  
+  <script>
+    document.querySelector('.toggle-sidebar-btn').addEventListener('click', function() {
+      document.getElementById('sidebar').classList.toggle('active');
+      document.getElementById('main').classList.toggle('active');
+    });
+  </script>
 </body>
-
 </html>
