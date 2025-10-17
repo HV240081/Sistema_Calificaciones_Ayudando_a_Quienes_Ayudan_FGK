@@ -55,7 +55,8 @@ if (isset($_GET['id'])) {
     $stmt = $pdo->prepare($sql);
     $stmt->execute(['ID_ACTIVIDAD' => $id_actividad]);
     $criterios = $stmt->fetchAll(PDO::FETCH_ASSOC);
-  
+
+    
     // === Inserción: obtener información de la actividad y preparar filtros ===
     $actividad_actual = null;
     $es_primera_fase = false;
@@ -89,9 +90,6 @@ if (isset($_GET['id'])) {
     }
 
 // Obtener el permiso de la actividad
-
-    // Obtener el permiso de la actividad
-
     if (!empty($criterios)) {
         $permiso_actividad = $criterios[0]['ID_PERMISO']; // Asumiendo que la actividad tiene un permiso único
     }
@@ -130,11 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id_usuario = $_POST['idUsuario'];  // El ID del usuario que está calificando
     $id_proyecto = $_POST['idProyecto'];  // El ID del proyecto que se está calificando
     $notas = $_POST['notas'];  // Las notas dadas por el usuario a los criterios
-
     $comentario = isset($_POST['comentario']) && !empty($_POST['comentario']) ? $_POST['comentario'] : '';
-
-    $comentario = $_POST['comentario'];  // Comentario opcional
-
     $id_nota_criterios = [];  // Para almacenar los IDs de las notas insertadas
     $total_calificacion_proyecto = 0;  // Suma de la calificación ponderada de cada criterio
     $total_porcentaje_proyecto = 0;  // Suma del porcentaje de cada criterio
@@ -486,7 +480,6 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
@@ -516,11 +509,7 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
     <link href="assets/vendor/simple-datatables/style.css" rel="stylesheet">
 
     <!-- Template Main CSS File -->
-
     <link href="assets/css/style.css?v=<?php echo time(); ?>" rel="stylesheet">
-
-
-    <link href="assets/css/style.css" rel="stylesheet">
 
 </head>
 
@@ -692,19 +681,20 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
                             <div class="rubrica-cards">
                                 <?php if ($es_primera_fase): ?>
                                     <?php /* Sin rúbrica en la primera evaluación (30%) */ ?>
-                                <?php elseif ($es_pitch_70): ?>
+                                    <?php elseif ($es_pitch_70): ?>
                                     <?php 
-                                        $rubrica_pitch = [
-                                            'Impacto Económico' => '14.3',
-                                            'Impacto Social' => '14.3',
-                                            'Impacto Ambiental' => '14.3',
-                                            'Sostenibilidad del Proyecto' => '14.3',
-                                            'Crecimiento Potencial' => '14.3',
-                                            'Innovación' => '14.3',
-                                            'Promedio del Proyecto' => '14.3'
+                                         $rubrica_pitch = [
+                                            'Impacto Económico',
+                                            'Impacto Social',
+                                            'Impacto Ambiental',
+                                            'Sostenibilidad del Proyecto',
+                                            'Crecimiento Potencial',
+                                            'Innovación',
+                                            'Promedio del Proyecto'
                                         ];
+                                        $ponderacion = '14.3';
                                     ?>
-                                    <?php foreach ($rubrica_pitch as $nombre => $ponderacion): ?>
+                                    <?php foreach ($rubrica_pitch as $nombre): ?>
                                         <div class="col-md-4 d-flex">
                                             <div class="card h-100">
                                                 <div class="card-body">
@@ -715,25 +705,23 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
                                         </div>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <div class="row mb-5">
-                                        <?php if ($criterios): ?>
-                                            <?php foreach ($criterios as $criterio): ?>
-                                                <div class="col-md-4 d-flex">
-                                                    <div class="card h-100">
-                                                        <div class="card-body">
-                                                            <h5 class="card-title">
-                                                                <?php echo htmlspecialchars($criterio['CRITERIO']); ?></h5>
-                                                            <p><?php echo htmlspecialchars($criterio['DESCRIPCION']); ?></p>
-                                                            <p>Ponderación: <?php echo htmlspecialchars($criterio['PORCENTAJE']); ?>%
-                                                            </p>
-                                                        </div>
+                                    <?php if ($criterios): ?>
+                                        <?php foreach ($criterios_mostrar as $criterio): ?>
+                                            <div class="col-md-4 d-flex">
+                                                <div class="card h-100">
+                                                    <div class="card-body">
+                                                        <h5 class="card-title">
+                                                            <?php echo htmlspecialchars($criterio['CRITERIO']); ?>
+                                                        </h5>
+                                                        <p><?php echo htmlspecialchars($criterio['DESCRIPCION']); ?></p>
+                                                        <p>Ponderación: <?php echo htmlspecialchars($criterio['PORCENTAJE']); ?>%</p>
                                                     </div>
                                                 </div>
-                                            <?php endforeach; ?>
-                                        <?php else: ?>
-                                            <p>No hay criterios disponibles para esta actividad o proyecto.</p>
-                                        <?php endif; ?>
-                                    </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <p>No hay criterios disponibles para esta actividad o proyecto.</p>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -797,6 +785,8 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
 
                                             <div class="table-responsive">
                                                 <table class="table table-bordered text-center" id="criteriosTable">
+                                                    
+                                                    
                                                     <thead>
                                                         <?php if ($es_pitch_70): ?>
                                                             <tr>
@@ -815,9 +805,7 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
                                                                 <?php foreach ($criterios_mostrar as $criterio): ?>
                                                                     <th scope="col"><?php echo htmlspecialchars($criterio['CRITERIO']); ?></th>
                                                                 <?php endforeach; ?>
-                                                                <?php if (!$es_primera_fase): ?>
-                                                                    <th scope="col">Comentario</th>
-                                                                <?php endif; ?>
+                                                                <?php if (!$es_primera_fase): ?><?php endif; ?>
                                                             </tr>
                                                         <?php endif; ?>
                                                     </thead>
@@ -849,6 +837,7 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
                                                             </tr>
                                                         <?php endif; ?>
                                                     </tbody>
+
                                                 </table>
                                             </div>
                                         </div>
@@ -906,7 +895,6 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
                                                 'id_actividad' => $row['ID_ACTIVIDAD'],
                                                 'notas_criterios' => [],
                                                 'calificacion_final' => $row['CALIFICACION_FINAL'],
-                                                'comentarios' => $row['COMENTARIOS']
                                             ];
                                         }
 
@@ -940,9 +928,8 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
                                                         <th scope="col"><?php echo htmlspecialchars($criterio['CRITERIO']); ?></th>
                                                     <?php endforeach; ?>
                                                     <?php if (!$es_primera_fase): ?>
-                                                        <th scope="col">Comentario</th>
-                                                    <?php endif; ?>
-                                                    <th scope="col">Acciones</th>
+                                                        <th scope="col">Comentario</th><?php endif; ?>
+                                                        <th scope="col">Acciones</th>
                                                 </tr>
                                             <?php endif; ?>
                                         </thead>
@@ -1006,9 +993,7 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
                                                         <?php endforeach; ?>
 
                                                         <!-- Mostrar los comentarios -->
-                                                        <?php if (!$es_primera_fase): ?>
-                                                            <td><?php echo htmlspecialchars(isset($detalles['comentarios']) && !empty($detalles['comentarios']) ? $detalles['comentarios'] : 'N/A'); ?></td>
-                                                        <?php endif; ?>
+                                                        <td><?php echo htmlspecialchars(isset($detalles['comentarios']) && !empty($detalles['comentarios']) ? $detalles['comentarios'] : 'N/A'); ?></td>
 
                                                         <!-- Botones de acción (modificar o agregar) -->
                                                         <td>
@@ -1023,6 +1008,7 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
                                             <?php endforeach; ?>
                                         </tbody>
                                     </table>
+
                                 </div>
                             <?php else: ?>
                                 <div class="table-responsive">
@@ -1085,7 +1071,6 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
                                                 <?php foreach ($criterios_mostrar as $criterio): ?>
                                                     <th scope="col"><?php echo htmlspecialchars($criterio['CRITERIO']); ?></th>
                                                 <?php endforeach; ?>
-                                                <th scope="col">Nota Final</th>
                                             </tr>
                                         </thead>
                                         <tbody id="statusTable">
@@ -1102,16 +1087,17 @@ if (isset($_GET['delete']) && isset($_GET['id_proyecto']) && isset($_GET['id_act
                                                         <td><?php echo htmlspecialchars($nota); ?></td>
                                                     <?php endforeach; ?>
 
-                                                    <!-- Mostrar la calificación final -->
-                                                    <td>
-                                                        <?php echo htmlspecialchars($detalles['calificacion_final'] ? $detalles['calificacion_final'] : 'N/A'); ?>
-                                                    </td>
                                                 </tr>
                                             <?php endforeach; ?>
                                         </tbody>
                                     </table>
+
                                 </div>
+
                             <?php endif; ?>
+
+
+
                         </div>
                     </div>
                 </div>

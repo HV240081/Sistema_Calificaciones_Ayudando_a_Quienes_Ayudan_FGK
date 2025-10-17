@@ -3,9 +3,6 @@
 session_start();
 require_once 'bdd/database.php';
 
-require_once './bdd/database.php';
-
-
 
 // Verificar si se enviaron los datos del formulario
 if ($_SERVER["REQUEST_METHOD"] == "POST") {

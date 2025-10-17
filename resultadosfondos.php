@@ -3,9 +3,6 @@
 include 'bdd/database.php';
 
 // Iniciar sesión
-
-include 'bdd/database.php';
-
 session_start();
 if (!isset($_SESSION['id_usuario'])) {
     header("Location: index.php");
@@ -15,9 +12,6 @@ if (!isset($_SESSION['id_usuario'])) {
 $id_usuario = $_SESSION['id_usuario'];
 
 // Obtener el rol del usuario actual
-
-// Obtener datos del usuario
-
 $sql = "SELECT U.NOMBRE, U.APELLIDO, R.ROL 
         FROM USUARIO U 
         JOIN ROL R ON U.ID_ROL = R.ID_ROL 
@@ -26,9 +20,7 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute([$id_usuario]);
 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-
 // Nombre y rol del usuario actual
-
 $nombre_usuario = $row['NOMBRE'] . ' ' . $row['APELLIDO'];
 $rol = $row['ROL'];
 
@@ -74,78 +66,10 @@ try {
         rel="stylesheet">
 
     <!-- Vendor CSS Files -->
-
-    // 1) Obtener proyectos con su ID_NFINAL y nota
-    $stmt = $pdo->query("
-        SELECT P.ID_PROYECTO, P.PROYECTO, N.NOTA_FINAL, N.ID_NFINAL
-        FROM PROYECTO P
-        JOIN NFINAL N ON P.ID_PROYECTO = N.ID_PROYECTO
-        ORDER BY P.PROYECTO
-    ");
-    $proyectos_result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // 2) Obtener mapeo de ID_PREMIO -> PREMIO (nombres)
-    $stmt2 = $pdo->query("SELECT ID_PREMIO, PREMIO FROM PREMIO");
-    $premio_map = [];
-    foreach ($stmt2->fetchAll(PDO::FETCH_ASSOC) as $p) {
-        $premio_map[$p['ID_PREMIO']] = $p['PREMIO'];
-    }
-
-    // 3) Obtener asignaciones PREMIO_NFINAL (por ID_NFINAL)
-    $stmt3 = $pdo->query("SELECT ID_NFINAL, ID_PREMIO FROM PREMIO_NFINAL");
-    $asig_rows = $stmt3->fetchAll(PDO::FETCH_ASSOC);
-
-    $asignaciones_map = []; // ID_NFINAL => array(ID_PREMIO, ...)
-    foreach ($asig_rows as $ar) {
-        $idn = $ar['ID_NFINAL'];
-        $idp = $ar['ID_PREMIO'];
-        if (!isset($asignaciones_map[$idn])) $asignaciones_map[$idn] = [];
-        $asignaciones_map[$idn][] = $idp;
-    }
-
-    // 4) Preparar estructura final por proyecto y hallar maxFondos (por posición)
-    $proyectos = []; // key by project name (or could use ID_PROYECTO)
-    $maxFondos = 0;
-    foreach ($proyectos_result as $r) {
-        $idn = $r['ID_NFINAL'];
-        $nombre = $r['PROYECTO'];
-        $nota = $r['NOTA_FINAL'];
-
-        $listaIds = $asignaciones_map[$idn] ?? [];
-        // convertir a nombres usando $premio_map, manteniendo orden de IDs
-        $listaNombres = [];
-        foreach ($listaIds as $idp) {
-            $listaNombres[] = isset($premio_map[$idp]) ? $premio_map[$idp] : ('ID:' . $idp);
-        }
-
-        $proyectos[$idn] = [
-            'PROYECTO' => $nombre,
-            'NOTA_FINAL' => $nota,
-            'FONDOS_IDS' => $listaIds,
-            'FONDOS_NOMBRES' => $listaNombres
-        ];
-
-        $maxFondos = max($maxFondos, count($listaNombres));
-    }
-} catch (PDOException $e) {
-    echo "Error al realizar la consulta: " . $e->getMessage();
-    exit();
-}
-?>
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="utf-8">
-    <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>Panel Jurado - Fondos asignados</title>
-
-    <link href="assets/img/favicon.png" rel="icon">
-
     <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
     <link href="assets/vendor/boxicons/css/boxicons.min.css" rel="stylesheet">
     <link href="assets/vendor/quill/quill.snow.css" rel="stylesheet">
-
     <link href="assets/vendor/quill/quill.bubble.css" rel="stylesheet">
     <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
     <link href="assets/vendor/simple-datatables/style.css" rel="stylesheet">
@@ -157,14 +81,6 @@ try {
 <body>
 
     <!-- ======= Header ======= -->
-    <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
-    <link href="assets/vendor/simple-datatables/style.css" rel="stylesheet">
-    <link href="assets/css/style.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-</head>
-<body>
-       <!-- ======= Header ======= -->
-
     <header id="header" class="header fixed-top d-flex align-items-center">
 
         <div class="d-flex align-items-center justify-content-between">
@@ -305,7 +221,6 @@ try {
         </ul>
 
     </aside><!-- End Sidebar-->
-
     <main id="main" class="main">
         <div class="pagetitle">
             <h1>Fondos asignados</h1>
@@ -378,87 +293,16 @@ try {
   </footer><!-- End Footer -->
 
     <!-- Vendor JS Files -->
-
-        </div>
-
-        <section class="section dashboard">
-            <div class="row"><div class="col-lg-12"><div class="card"><div class="card-body">
-                <h5 class="card-title">Fondos asignados <span>| Resultados Finales</span></h5>
-
-                <table class="table table-bordered"  style="text-align: center;">
-                    <thead>
-                        <tr>
-                            <th scope="col">Proyecto</th>
-                            <th scope="col">
-                                Nota Final
-                                <button class="btn-modify" data-order="asc" type="button" onclick="ordenarNotas()" style="margin-left:5px;">
-                                    <i class="fas fa-sort-amount-down"></i>
-                                </button>
-                            </th>
-
-                            <?php if ($maxFondos > 0): ?>
-                                <?php for ($i = 1; $i <= $maxFondos; $i++): ?>
-                                    <th scope="col">Beneficio <?php echo $i; ?></th>
-                                <?php endfor; ?>
-                            <?php else: ?>
-                                <!-- Si no hay fondos asignados, mostramos la columna única de siempre -->
-                                <th scope="col">Fondo asignado</th>
-                            <?php endif; ?>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (!empty($proyectos)): ?>
-                            <?php foreach ($proyectos as $idn => $p): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($p['PROYECTO']); ?></td>
-                                    <td><?php echo htmlspecialchars($p['NOTA_FINAL']); ?></td>
-
-                                    <?php if ($maxFondos > 0): ?>
-                                        <?php
-                                        for ($i = 0; $i < $maxFondos; $i++):
-                                            $valor = $p['FONDOS_NOMBRES'][$i] ?? '—';
-                                        ?>
-                                            <td style="text-align:center;"><?php echo htmlspecialchars($valor); ?></td>
-                                        <?php endfor; ?>
-                                    <?php else: ?>
-                                        <?php
-                                            // Imprimir lista separada por comas de fondos (comportamiento antiguo)
-                                            $text = !empty($p['FONDOS_NOMBRES']) ? implode(', ', $p['FONDOS_NOMBRES']) : 'Fondo no asignado';
-                                        ?>
-                                        <td><?php echo htmlspecialchars($text); ?></td>
-                                    <?php endif; ?>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <tr><td colspan="<?php echo 2 + max(1, $maxFondos); ?>">No hay datos disponibles</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-
-            </div></div></div></div>
-        </section>
-    </main>
-
- <footer id="footer" class="footer">
-    <div class="copyright">
-        &copy; Copyright <strong><span>Ayudando a quienes ayudan</span></strong>. Todos los derechos reservados.
-    </div>
-</footer>
-
     <script src="../assets/vendor/bootstrap/js/bootstrap.bundle.js"></script>
     <script src="../assets/vendor/jquery/jquery.min.js"></script>
     <script src="../assets/vendor/simple-datatables/simple-datatables.js"></script>
     <script src="../assets/vendor/quill/quill.min.js"></script>
 
-
     <!-- Template Main JS File -->
-
-
     <script src="../assets/js/main.js"></script>
 
     <script>
         function ordenarNotas() {
-
             // Obtener el botón y el estado actual de orden
             var button = document.querySelector('.btn-modify');
             var order = button.getAttribute('data-order');
@@ -509,35 +353,3 @@ try {
 </body>
 
 </html>
-
-            var button = document.querySelector('.btn-modify');
-            var order = button.getAttribute('data-order');
-            var table = document.querySelector('.table-bordered tbody');
-            var rows = Array.from(table.querySelectorAll('tr'));
-
-            rows.sort(function(rowA, rowB) {
-                var notaA = parseFloat(rowA.querySelector('td:nth-child(2)').innerText) || 0;
-                var notaB = parseFloat(rowB.querySelector('td:nth-child(2)').innerText) || 0;
-                return order === 'asc' ? notaA - notaB : notaB - notaA;
-            });
-
-            table.innerHTML = "";
-            rows.forEach(r => table.appendChild(r));
-
-            if (order === 'asc') {
-                button.setAttribute('data-order', 'desc');
-                button.querySelector('i').classList.replace('fa-sort-amount-down', 'fa-sort-amount-up');
-            } else {
-                button.setAttribute('data-order', 'asc');
-                button.querySelector('i').classList.replace('fa-sort-amount-up', 'fa-sort-amount-down');
-            }
-        }
-
-        document.querySelector('.toggle-sidebar-btn').addEventListener('click', function() {
-            document.getElementById('sidebar').classList.toggle('active');
-            document.getElementById('main').classList.toggle('active');
-        });
-    </script>
-</body>
-</html>
-
