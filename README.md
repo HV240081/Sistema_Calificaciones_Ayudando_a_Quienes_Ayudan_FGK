@@ -1,1 +1,0 @@
-# Sistema_Calificaciones_Ayudando_a_Quienes_Ayudan_FGK
