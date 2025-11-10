@@ -36,37 +36,75 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// OBTENER JURADOS DINÁMICAMENTE (ID_ROL 2 y 3) EN ORDEN ESPECÍFICO - SOLO ACTIVOS
+$sql_jurados = "SELECT ID_USUARIO, NOMBRE, APELLIDO FROM USUARIO WHERE ID_ROL IN (2, 3) AND ESTADO = 1 ORDER BY 
+                CASE 
+                    WHEN CONCAT(NOMBRE, ' ', APELLIDO) = 'Fernando Kriete' THEN 1
+                    WHEN CONCAT(NOMBRE, ' ', APELLIDO) = 'José Giammatei' THEN 2
+                    WHEN CONCAT(NOMBRE, ' ', APELLIDO) = 'Alexandra Araujo' THEN 3
+                    WHEN CONCAT(NOMBRE, ' ', APELLIDO) = 'Francisco Pérez' THEN 4
+                    WHEN CONCAT(NOMBRE, ' ', APELLIDO) = 'José Montalvo' THEN 5
+                    WHEN CONCAT(NOMBRE, ' ', APELLIDO) = 'Juana Jule' THEN 6
+                    ELSE 7
+                END, APELLIDO, NOMBRE";
+$stmt_jurados = $pdo->prepare($sql_jurados);
+$stmt_jurados->execute();
+$jurados_dinamicos = $stmt_jurados->fetchAll(PDO::FETCH_ASSOC);
 
-// Consulta SQL para obtener las calificaciones por jurado y proyecto
+// Crear array de jurados en orden específico
+$jurados_orden_fijo = [];
+foreach ($jurados_dinamicos as $jurado) {
+    $jurados_orden_fijo[] = $jurado['NOMBRE'] . ' ' . $jurado['APELLIDO'];
+}
+
+// CONSULTA PARA OBTENER TODOS LOS PROYECTOS FIJOS
+$query_proyectos = "SELECT ID_PROYECTO, PROYECTO FROM PROYECTO ORDER BY ID_PROYECTO";
+$stmt_proyectos = $pdo->prepare($query_proyectos);
+$stmt_proyectos->execute();
+$proyectos_fijos = $stmt_proyectos->fetchAll(PDO::FETCH_ASSOC);
+
+// --- DEFINICIÓN DE LA ACTIVIDAD PITCH ---
+$actividad_pitch_id = 10; // Asumimos ID 10 para la Evaluación Pitch
+
+// CONSULTA MODIFICADA: OBTIENE CALIFICACION.CALIFICACION Y LA MAPEA AL JURADO
+// La nota se extrae de la tabla CALIFICACION y se vincula al JURADO que realizó los criterios
+// mediante las tablas de enlace (NOTA_CRITERIO_CALIFICACION y NOTA_CRITERIO).
 $query = "
-    SELECT CONCAT(u.NOMBRE, ' ', u.APELLIDO) AS JURADO, 
-           p.PROYECTO AS PROYECTO, 
-           n.CALIFICACION AS CALIFICACION, 
-           n.ID_NOTAS 
-    FROM NOTAS n 
-    JOIN USUARIO u ON u.ID_USUARIO = n.ID_USUARIO 
-    JOIN PROYECTO p ON p.ID_PROYECTO = n.ID_PROYECTO
+    SELECT 
+        CONCAT(u.NOMBRE, ' ', u.APELLIDO) AS JURADO, 
+        p.PROYECTO AS PROYECTO, 
+        c.CALIFICACION AS CALIFICACION, -- <--- USAMOS LA NOTA FINAL DE LA TABLA CALIFICACION
+        u.ID_USUARIO AS JURADO_ID,
+        p.ID_PROYECTO
+    FROM CALIFICACION c 
+    JOIN PROYECTO p ON p.ID_PROYECTO = c.ID_PROYECTO
+    -- Hacemos el enlace a través de las notas de criterios para identificar al jurado
+    JOIN NOTA_CRITERIO_CALIFICACION ncc ON c.ID_CALIFICACION = ncc.ID_CALIFICACION
+    JOIN NOTA_CRITERIO nc ON ncc.ID_NOTA_CRITERIO = nc.ID_NOTACRITERIO
+    JOIN USUARIO u ON u.ID_USUARIO = nc.ID_USUARIO
+    
+    WHERE c.ID_ACTIVIDAD = :actividad_id -- FILTRAMOS SOLO POR LA ACTIVIDAD PITCH (ID 10)
+    AND u.ID_ROL IN (2, 3) 
+    AND u.ESTADO = 1 -- SOLO JURADOS ACTIVOS
+    GROUP BY p.PROYECTO, u.ID_USUARIO, c.CALIFICACION 
     ORDER BY p.ID_PROYECTO, u.ID_USUARIO";
 
 // Ejecutar la consulta usando PDO
 $stmt = $pdo->prepare($query);
-$stmt->execute();
+// Pasamos el ID de la actividad como parámetro
+$stmt->execute(['actividad_id' => $actividad_pitch_id]);
 
 // Crear un array para almacenar las evaluaciones
 $evaluaciones = [];
-$jurados = []; // Para almacenar los nombres de los jurados
 
-// Recorrer los resultados
+// Recorrer los resultados de calificaciones
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    // Agrupar los datos por proyecto
-    $evaluaciones[$row['PROYECTO']][$row['JURADO']] = $row['CALIFICACION'];
-
-    // Agregar el nombre del jurado al array de jurados (si no existe)
-    if (!in_array($row['JURADO'], $jurados)) {
-        $jurados[] = $row['JURADO'];
-    }
+    // La calificación_final ya es CALIFICACION.CALIFICACION
+    $calificacion_final = $row['CALIFICACION'];
+    
+    // Agrupar los datos por proyecto y jurado
+    $evaluaciones[$row['PROYECTO']][$row['JURADO']] = $calificacion_final;
 }
-
 ?>
 
 <!DOCTYPE html>
@@ -87,8 +125,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
     <!-- Google Fonts -->
     <link href="https://fonts.gstatic.com" rel="preconnect">
-    <link
-        href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Nunito:300,300i,400,400i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i"
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Nunito:300,300i,400,400i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i"
         rel="stylesheet">
 
     <!-- Vendor CSS Files -->
@@ -116,11 +153,8 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             <i class="bi bi-list toggle-sidebar-btn"></i>
         </div><!-- End Logo -->
 
-
         <nav class="header-nav ms-auto">
             <ul class="d-flex align-items-center">
-
-                </li><!-- End Messages Nav -->
 
                 <li class="nav-item dropdown pe-3">
 
@@ -148,7 +182,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                         </li>
 
                         <li>
-                            <a class="dropdown-item d-flex align-items-center" href="../index.php">
+                            <a class="dropdown-item d-flex align-items-center" href="./index.php">
                                 <i class="bi bi-box-arrow-right"></i>
                                 <span>Cerrar Sesion</span>
                             </a>
@@ -181,9 +215,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 <ul id="evaluacion-nav" class="nav-content collapse" data-bs-parent="#sidebar-nav">
                     <!-- Aquí se cargarán dinámicamente las actividades -->
                     <?php
-                    include 'bdd/database.php'; // Asegúrate de tener una conexión PDO en este archivo
-
-                    $sql = "SELECT ID_ACTIVIDAD, NOM_ACTIVIDAD, PORCENTAJE FROM ACTIVIDAD"; // Ajusta el nombre de la tabla y los campos según tu base de datos
+                    $sql = "SELECT ID_ACTIVIDAD, NOM_ACTIVIDAD, PORCENTAJE FROM ACTIVIDAD"; 
                     $stmt = $pdo->prepare($sql);
                     $stmt->execute();
                     $actividades = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -232,7 +264,6 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     <i class="bi bi-piggy-bank"></i>
                     <span>Asignar Fondos</span>
                 </a>
-
             </li><!-- End Icons Nav -->
 
             <li class="nav-item">
@@ -240,7 +271,6 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     <i class="bi bi-gem"></i>
                     <span>Fondos asignados</span>
                 </a>
-
             </li><!-- End Icons Nav -->
 
             <li class="nav-item">
@@ -262,55 +292,79 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     </aside><!-- End Sidebar-->
 
     <main id="main" class="main">
+
         <div class="pagetitle">
-            <h1>Resultados individuales</h1>
+            <h1>Resultados Individuales</h1>
             <nav>
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="panel_juradop.php">Inicio</a></li>
-                    <li class="breadcrumb-item active">Resultados individuales</li>
+                    <li class="breadcrumb-item"><a href="panel_jurado.php">Inicio</a></li>
+                    <li class="breadcrumb-item active">Resultados</li>
                 </ol>
             </nav>
         </div><!-- End Page Title -->
 
-        <section class="section dashboard">
+        <section class="section">
             <div class="row">
-
                 <div class="col-lg-12">
-                    <div class="card recent-sales overflow-auto">
+                    <div class="card">
                         <div class="card-body">
-                            <h5 class="card-title">Resultados Finales <span>| Resultados Individuales</span></h5>
-
+                            <h5 class="card-title">Resultados de Calificaciones - Evaluación Pitch</h5>
+                            <!-- ========== EXPLICACIÓN CÁLCULO INDIVIDUAL ========== -->
+                            <div class="alert alert-info mb-4" role="alert">
+                                <h4 class="alert-heading"><i class="bi bi-info-circle me-2"></i>Cálculo de Calificaciones Individuales</h4>
+                                <hr>
+                                <p class="mb-2"><strong>Fórmula para cada jurado:</strong></p>
+                                <div class="ms-3">
+                                    <p class="mb-1"><strong>Calificación Individual = (Suma de 6 criterios / 6) × 70%</strong></p>
+                                    <ul class="mb-2">
+                                        <li>Cada jurado califica los 6 criterios del pitch de 0 a 10 puntos</li>
+                                        <li>Se calcula el promedio simple de los 6 criterios</li>
+                                        <li>El resultado se multiplica por 0.70 (70%)</li>
+                                        <li>La calificación final se escala a 2 decimales</li>
+                                    </ul>
+                                </div>
+                                <p class="mb-0"><strong>Nota:</strong> Esta tabla muestra las calificaciones individuales de cada jurado para cada proyecto en la Evaluación Pitch.</p>
+                            </div>
                             <table class="table table-bordered" id="resultsTable">
-    <thead>
-        <tr>
-            <th scope="col">Proyecto</th>
-            <?php
-            // Mostrar los nombres de los jurados en el encabezado
-            foreach ($jurados as $jurado) {
-                echo "<th scope='col'>{$jurado}</th>";
-            }
-            ?>
-        </tr>
-    </thead>
-    <tbody>
-        <?php
-        // Mostrar las calificaciones por cada proyecto
-        foreach ($evaluaciones as $proyecto => $notas) {
-            echo "<tr>";
-            echo "<td>$proyecto</td>";
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Proyecto</th>
+                                        <?php
+                                        // Mostrar los nombres de TODOS los jurados ACTIVOS en el orden específico
+                                        foreach ($jurados_orden_fijo as $jurado) {
+                                            echo "<th scope='col'>$jurado</th>";
+                                        }
+                                        ?>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
+                                    // Mostrar TODOS los proyectos fijos
+                                    foreach ($proyectos_fijos as $proyecto_fijo) {
+                                        $proyecto_nombre = $proyecto_fijo['PROYECTO'];
+                                        echo "<tr>";
+                                        echo "<td>" . htmlspecialchars($proyecto_nombre) . "</td>";
 
-            // Mostrar calificaciones para cada jurado
-            foreach ($jurados as $jurado) {
-                // Verificar si el jurado tiene calificación para el proyecto
-                echo "<td>" . (isset($notas[$jurado]) ? $notas[$jurado] : '') . "</td>";
-            }
-            echo "</tr>";
-        }
-        ?>
-    </tbody>
-</table>
+                                        // Mostrar calificaciones para CADA jurado ACTIVO en el orden específico
+                                        foreach ($jurados_orden_fijo as $jurado_nombre) {
+                                            // Verificar si existe calificación para este proyecto y jurado
+                                            $calificacion = '0.00';
+                                            if (isset($evaluaciones[$proyecto_nombre][$jurado_nombre])) {
+                                                $calificacion = $evaluaciones[$proyecto_nombre][$jurado_nombre];
+                                                // Formatear a 2 decimales si es numérico
+                                                if (is_numeric($calificacion)) {
+                                                    $calificacion = number_format($calificacion, 2);
+                                                }
+                                            }
+                                            
+                                            echo "<td>" . $calificacion . "</td>";
+                                        }
+                                        echo "</tr>";
+                                    }
+                                    ?>
+                                </tbody>
+                            </table>
                         </div>
-
                     </div>
                 </div>
             </div>
@@ -318,12 +372,12 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
     </main><!-- End #main -->
 
-  <!-- ======= Footer ======= -->
-  <footer id="footer" class="footer">
-    <div class="copyright">
-      &copy; Copyright <strong><span>Ayudando a quienes ayudan</span></strong>. Todos los derechos reservados.
-    </div>
-  </footer><!-- End Footer -->
+    <!-- ======= Footer ======= -->
+    <footer id="footer" class="footer">
+        <div class="copyright">
+            &copy; Copyright <strong><span>Ayudando a quienes ayudan</span></strong>. Todos los derechos reservados.
+        </div>
+    </footer><!-- End Footer -->
 
     <!-- Vendor JS Files -->
     <script src="assets/vendor/bootstrap/js/bootstrap.bundle.js"></script>
@@ -376,12 +430,13 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             }
         }
     </script>
-<script>
-  document.querySelector('.toggle-sidebar-btn').addEventListener('click', function() {
-    document.getElementById('sidebar').classList.toggle('active');
-    document.getElementById('main').classList.toggle('active');
-  });
-</script>
+
+    <script>
+        document.querySelector('.toggle-sidebar-btn').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.toggle('active');
+            document.getElementById('main').classList.toggle('active');
+        });
+    </script>
 
 </body>
 

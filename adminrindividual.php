@@ -36,6 +36,38 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// OBTENER JURADOS DINÁMICAMENTE (ID_ROL 2 y 3) EN ORDEN ESPECÍFICO - SOLO ACTIVOS
+$sql_jurados = "SELECT ID_USUARIO, NOMBRE, APELLIDO FROM USUARIO WHERE ID_ROL IN (2, 3) AND ESTADO = 1 ORDER BY 
+                CASE 
+                    WHEN CONCAT(NOMBRE, ' ', APELLIDO) = 'Fernando Kriete' THEN 1
+                    WHEN CONCAT(NOMBRE, ' ', APELLIDO) = 'José Giammatei' THEN 2
+                    WHEN CONCAT(NOMBRE, ' ', APELLIDO) = 'Alexandra Araujo' THEN 3
+                    WHEN CONCAT(NOMBRE, ' ', APELLIDO) = 'Francisco Pérez' THEN 4
+                    WHEN CONCAT(NOMBRE, ' ', APELLIDO) = 'José Montalvo' THEN 5
+                    WHEN CONCAT(NOMBRE, ' ', APELLIDO) = 'Juana Jule' THEN 6
+                    ELSE 7
+                END, APELLIDO, NOMBRE";
+$stmt_jurados = $pdo->prepare($sql_jurados);
+$stmt_jurados->execute();
+$jurados_dinamicos = $stmt_jurados->fetchAll(PDO::FETCH_ASSOC);
+
+// Crear array de jurados en orden específico
+$jurados_orden_fijo = [];
+foreach ($jurados_dinamicos as $jurado) {
+    $jurados_orden_fijo[] = $jurado['NOMBRE'] . ' ' . $jurado['APELLIDO'];
+}
+
+// OBTENER EL NÚMERO DE JURADOS ACTIVOS
+$query_jurados_activos = "
+SELECT COUNT(*) as total_jurados_activos 
+FROM USUARIO 
+WHERE ID_ROL IN (2, 3) AND ESTADO = 1";
+$stmt_jurados_activos = $pdo->prepare($query_jurados_activos);
+$stmt_jurados_activos->execute();
+$result_jurados_activos = $stmt_jurados_activos->fetch(PDO::FETCH_ASSOC);
+$numero_jurados_activos = $result_jurados_activos['total_jurados_activos'];
+
+// CONSULTA MODIFICADA: OBTENER EVALUACIONES SOLO DE JURADOS ACTIVOS
 $query = "
     SELECT CONCAT(u.NOMBRE, ' ', u.APELLIDO) AS JURADO, 
            p.PROYECTO AS PROYECTO, 
@@ -44,7 +76,17 @@ $query = "
     FROM NOTAS n 
     JOIN USUARIO u ON u.ID_USUARIO = n.ID_USUARIO 
     JOIN PROYECTO p ON p.ID_PROYECTO = n.ID_PROYECTO
-    ORDER BY p.ID_PROYECTO, u.ID_USUARIO";
+    WHERE u.ESTADO = 1  -- SOLO JURADOS ACTIVOS
+    ORDER BY 
+        CASE 
+            WHEN CONCAT(u.NOMBRE, ' ', u.APELLIDO) = 'Fernando Kriete' THEN 1
+            WHEN CONCAT(u.NOMBRE, ' ', u.APELLIDO) = 'José Giammatei' THEN 2
+            WHEN CONCAT(u.NOMBRE, ' ', u.APELLIDO) = 'Alexandra Araujo' THEN 3
+            WHEN CONCAT(u.NOMBRE, ' ', u.APELLIDO) = 'Francisco Pérez' THEN 4
+            WHEN CONCAT(u.NOMBRE, ' ', u.APELLIDO) = 'José Montalvo' THEN 5
+            WHEN CONCAT(u.NOMBRE, ' ', u.APELLIDO) = 'Juana Jule' THEN 6
+            ELSE 7
+        END, p.ID_PROYECTO, u.ID_USUARIO";
 
 // Ejecutar la consulta usando PDO
 $stmt = $pdo->prepare($query);
@@ -52,18 +94,18 @@ $stmt->execute();
 
 // Crear un array para almacenar las evaluaciones
 $evaluaciones = [];
-$jurados = []; // Para almacenar los nombres de los jurados
 
 // Recorrer los resultados
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     // Agrupar los datos por proyecto
     $evaluaciones[$row['PROYECTO']][$row['JURADO']] = $row['CALIFICACION'];
-
-    // Agregar el nombre del jurado al array de jurados (si no existe)
-    if (!in_array($row['JURADO'], $jurados)) {
-        $jurados[] = $row['JURADO'];
-    }
 }
+
+// Obtener todos los proyectos para mostrar en la tabla
+$query_proyectos = "SELECT ID_PROYECTO, PROYECTO FROM PROYECTO ORDER BY ID_PROYECTO";
+$stmt_proyectos = $pdo->prepare($query_proyectos);
+$stmt_proyectos->execute();
+$proyectos_fijos = $stmt_proyectos->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 
@@ -194,10 +236,10 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                         </a>
                     </li>
                     <li>
-            <a href="admindetallado.php">
-              <i class="bi bi-circle"></i><span>Resultados Específicos</span>
-            </a>
-          </li>
+                        <a href="admindetallado.php">
+                            <i class="bi bi-circle"></i><span>Resultados Específicos</span>
+                        </a>
+                    </li>
                     <li>
                         <a href="adminiglobal.php">
                             <i class="bi bi-circle"></i><span>Resultados Globales</span>
@@ -228,84 +270,100 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             </li>
             
             <li class="nav-item">
-        <a class="nav-link collapsed" href="users-profileadmin.php">
-          <i class="bi bi-person"></i>
-          <span>Perfil</span>
-        </a>
-      </li><!-- End Profile Page Nav -->
+                <a class="nav-link collapsed" href="users-profileadmin.php">
+                    <i class="bi bi-person"></i>
+                    <span>Perfil</span>
+                </a>
+            </li><!-- End Profile Page Nav -->
 
-      <li class="nav-item">
-        <a class="nav-link collapsed" href="manual_admin.php">
-          <i class="bi bi-question-circle"></i>
-          <span>Manual</span>
-        </a>
-      </li>
-      <!-- End F.A.Q Page Nav -->
-      
-      <!-- End Forms Nav -->
+            <li class="nav-item">
+                <a class="nav-link collapsed" href="manual_admin.php">
+                    <i class="bi bi-question-circle"></i>
+                    <span>Manual</span>
+                </a>
+            </li>
+            <!-- End F.A.Q Page Nav -->
+            
+            <!-- End Forms Nav -->
         </ul>
     </aside><!-- End Sidebar-->
 
     <main id="main" class="main">
-    <div class="pagetitle">
-        <h1>Resultados de Evaluación</h1>
-        <nav>
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="panel_admin.php">Panel</a></li>
-                <li class="breadcrumb-item active">Resultados de Evaluación</li>
-            </ol>
-        </nav>
-    </div><!-- End Page Title -->
+        <div class="pagetitle">
+            <h1>Resultados de Evaluación</h1>
+            <nav>
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="panel_admin.php">Panel</a></li>
+                    <li class="breadcrumb-item active">Resultados de Evaluación</li>
+                </ol>
+            </nav>
+        </div><!-- End Page Title -->
 
-    <section class="section">
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Resultados por Proyecto</h5>
+        <section class="section">
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Resultados por Proyecto</h5>
+                            <p class="text-muted">Mostrando resultados de <?php echo $numero_jurados_activos; ?> jurados activos</p>
 
-                        <table class="table table-bordered" id="resultsTable" style="font-size: 14px; width: 100%;">
-                            <thead>
-                                <tr>
-                                    <th scope="col">Proyecto</th>
-                                    <?php
-                                    // Mostrar los nombres de los jurados en el encabezado
-                                    foreach ($jurados as $jurado) {
-                                        echo "<th scope='col'>$jurado</th>";
-                                    }
-                                    ?>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php
-                                // Mostrar las calificaciones por cada proyecto
-                                foreach ($evaluaciones as $proyecto => $notas) {
-                                    echo "<tr>";
-                                    echo "<td>$proyecto</td>";
+                            <?php if (empty($jurados_orden_fijo)): ?>
+                                <p class="text-center">No hay jurados activos con evaluaciones registradas.</p>
+                            <?php else: ?>
+                                <table class="table table-bordered" id="resultsTable" style="font-size: 14px; width: 100%;">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Proyecto</th>
+                                            <?php
+                                            // Mostrar los nombres de TODOS los jurados ACTIVOS en el orden específico
+                                            foreach ($jurados_orden_fijo as $jurado) {
+                                                echo "<th scope='col'>$jurado</th>";
+                                            }
+                                            ?>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php
+                                        // Mostrar TODOS los proyectos fijos
+                                        foreach ($proyectos_fijos as $proyecto_fijo) {
+                                            $proyecto_nombre = $proyecto_fijo['PROYECTO'];
+                                            echo "<tr>";
+                                            echo "<td>" . htmlspecialchars($proyecto_nombre) . "</td>";
 
-                                    // Mostrar calificaciones para cada jurado
-                                    foreach ($jurados as $jurado) {
-                                        // Verificar si el jurado tiene calificación para el proyecto
-                                        echo "<td>" . (isset($notas[$jurado]) ? htmlspecialchars($notas[$jurado]) : '') . "</td>";
-                                    }
-                                    echo "</tr>";
-                                }
-                                ?>
-                            </tbody>
-                        </table>
+                                            // Mostrar calificaciones para CADA jurado ACTIVO en el orden específico
+                                            foreach ($jurados_orden_fijo as $jurado_nombre) {
+                                                // Verificar si existe calificación para este proyecto y jurado
+                                                $calificacion = '0.00';
+                                                if (isset($evaluaciones[$proyecto_nombre][$jurado_nombre])) {
+                                                    $calificacion = htmlspecialchars($evaluaciones[$proyecto_nombre][$jurado_nombre]);
+                                                    // Formatear a 2 decimales si es numérico
+                                                    if (is_numeric($calificacion)) {
+                                                        $calificacion = number_format($calificacion, 2);
+                                                    }
+                                                }
+                                                
+                                                echo "<td>" . $calificacion . "</td>";
+                                            }
+                                            echo "</tr>";
+                                        }
+                                        ?>
+                                    </tbody>
+                                </table>
+                            <?php endif; ?>
 
+                        </div>
                     </div>
                 </div>
             </div>
+        </section>
+    </main><!-- End #main -->
+    
+    <!-- ======= Footer ======= -->
+    <footer id="footer" class="footer">
+        <div class="copyright">
+            &copy; Copyright <strong><span>Ayudando a quienes ayudan</span></strong>. Todos los derechos reservados.
         </div>
-    </section>
-</main><!-- End #main -->
-  <!-- ======= Footer ======= -->
-  <footer id="footer" class="footer">
-    <div class="copyright">
-      &copy; Copyright <strong><span>Ayudando a quienes ayudan</span></strong>. Todos los derechos reservados.
-    </div>
-  </footer><!-- End Footer -->
+    </footer><!-- End Footer -->
 
     <!-- Vendor JS Files -->
     <script src="assets/vendor/apexcharts/apexcharts.min.js"></script>
@@ -320,11 +378,11 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     <!-- Template Main JS File -->
     <script src="assets/js/main.js"></script>
     <script>
-  document.querySelector('.toggle-sidebar-btn').addEventListener('click', function() {
-    document.getElementById('sidebar').classList.toggle('active');
-    document.getElementById('main').classList.toggle('active');
-  });
-</script>
+        document.querySelector('.toggle-sidebar-btn').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.toggle('active');
+            document.getElementById('main').classList.toggle('active');
+        });
+    </script>
 
 </body>
 

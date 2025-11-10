@@ -1,10 +1,9 @@
 <?php
-// Conexión a la base de datos y otras configuraciones
+// === CONEXIÓN Y CONFIGURACIÓN DE SESIÓN ===
 $dsn = "mysql:host=localhost;dbname=PROYECTO_ES";
 $username = "userproyect";
 $password = "FGK202412345";
 
-// Conexión a la base de datos
 try {
     $pdo = new PDO($dsn, $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -13,7 +12,6 @@ try {
     exit();
 }
 
-// Iniciar sesión
 session_start();
 if (!isset($_SESSION['id_usuario'])) {
     header("Location: index.php");
@@ -22,7 +20,7 @@ if (!isset($_SESSION['id_usuario'])) {
 
 $id_usuario = $_SESSION['id_usuario'];
 
-// Obtener el rol del usuario actual
+// === DATOS DEL USUARIO ===
 $sql = "SELECT U.NOMBRE, U.APELLIDO, R.ROL 
         FROM USUARIO U 
         JOIN ROL R ON U.ID_ROL = R.ID_ROL 
@@ -30,558 +28,719 @@ $sql = "SELECT U.NOMBRE, U.APELLIDO, R.ROL
 $stmt = $pdo->prepare($sql);
 $stmt->execute([$id_usuario]);
 $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-// Nombre y rol del usuario actual
 $nombre_usuario = $row['NOMBRE'] . ' ' . $row['APELLIDO'];
 $rol = $row['ROL'];
 
-// Consulta para obtener todos los proyectos y notas finales
-try {
-    $stmt = $pdo->query("
-        SELECT P.ID_PROYECTO, P.PROYECTO, N.NOTA_FINAL 
-        FROM PROYECTO P
-        JOIN NFINAL N ON P.ID_PROYECTO = N.ID_PROYECTO
-    ");
-    $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    echo "Error al obtener proyectos y notas: " . $e->getMessage();
+
+
+// === FUNCIÓN PARA CREAR REGISTROS NFINAL SI NO EXISTEN ===
+function crearRegistroNfinal($pdo, $id_proyecto, $id_actividad_final, $nota_final) {
+    // Verificar si ya existe
+    $stmt_check = $pdo->prepare("SELECT ID_NFINAL FROM nfinal WHERE ID_PROYECTO = ? AND ID_ACTIVIDAD = ?");
+    $stmt_check->execute([$id_proyecto, $id_actividad_final]);
+    $existing = $stmt_check->fetch(PDO::FETCH_ASSOC);
+    
+    if ($existing) {
+        return $existing['ID_NFINAL'];
+    }
+    
+    // Crear nuevo registro
+    $stmt_insert = $pdo->prepare("INSERT INTO nfinal (NOTA_FINAL, ID_PROYECTO, ID_ACTIVIDAD) VALUES (?, ?, ?)");
+    $stmt_insert->execute([$nota_final, $id_proyecto, $id_actividad_final]);
+    return $pdo->lastInsertId();
 }
 
-// Consultar fondos disponibles
-try {
-    $stmt_fondos = $pdo->query("SELECT ID_PREMIO, PREMIO FROM PREMIO");
-    $fondos = $stmt_fondos->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    echo "Error al obtener fondos: " . $e->getMessage();
-}
 
-// Consulta para verificar si ya hay asignaciones de fondos
-try {
-    $stmt_asignaciones = $pdo->query("
-        SELECT ID_PROYECTO, ID_PREMIO
-        FROM PREMIO_NFINAL
-        JOIN NFINAL ON PREMIO_NFINAL.ID_NFINAL = NFINAL.ID_NFINAL
-    ");
-    $asignaciones_previas = $stmt_asignaciones->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    echo "Error al obtener asignaciones: " . $e->getMessage();
-}
+// === PROCESAMIENTO DE FORMULARIOS ===
+$success = false;
+$deleted = false;
 
-$success = false; // Añadimos una variable para saber si todo fue exitoso
-
+// === NUEVO CODE PARA INSERTAS DATOS EN ID_FINAL ===
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['asignar_fondos'])) {
-    foreach ($_POST['proyecto'] as $id_proyecto => $id_premio) {
-        $id_proyecto = intval($id_proyecto);
-        $id_premio = intval($id_premio);
+    foreach ($_POST['fondos'] as $id_nfinal => $premios) {
+        // **VERIFICAR QUE EL ID_NFINAL EXISTA ANTES DE CUALQUIER OPERACIÓN**
+        $stmt_verify = $pdo->prepare("SELECT COUNT(*) FROM nfinal WHERE ID_NFINAL = :id_nfinal");
+        $stmt_verify->bindParam(':id_nfinal', $id_nfinal, PDO::PARAM_INT);
+        $stmt_verify->execute();
+        $exists = $stmt_verify->fetchColumn();
+        
+        if ($exists == 0) {
+            error_log("ERROR: Se intentó asignar premios a un ID_NFINAL inexistente: $id_nfinal");
+            continue; // Saltar este proyecto y continuar con el siguiente
+        }
+        
+        $stmt_delete = $pdo->prepare("DELETE FROM PREMIO_NFINAL WHERE ID_NFINAL = :id_nfinal");
+        $stmt_delete->bindParam(':id_nfinal', $id_nfinal, PDO::PARAM_INT);
+        $stmt_delete->execute();
 
-        // Asegúrate de que id_premio sea mayor que 0 para evitar inserciones vacías
-        if ($id_premio > 0) {
-            try {
-                $stmt_insert = $pdo->prepare("
-                    INSERT INTO PREMIO_NFINAL (ID_PREMIO, ID_NFINAL)
-                    VALUES (:id_premio, (
-                        SELECT ID_NFINAL FROM NFINAL WHERE ID_PROYECTO = :id_proyecto
-                    ))
-                ");
+        foreach ($premios as $id_premio) {
+            $id_premio = intval($id_premio);
+            if ($id_premio > 0) {
+                $stmt_insert = $pdo->prepare("INSERT INTO PREMIO_NFINAL (ID_PREMIO, ID_NFINAL) VALUES (:id_premio, :id_nfinal)");
                 $stmt_insert->bindParam(':id_premio', $id_premio, PDO::PARAM_INT);
-                $stmt_insert->bindParam(':id_proyecto', $id_proyecto, PDO::PARAM_INT);
-                $stmt_insert->execute();
-                $success = true; // Si la ejecución es exitosa, establecemos $success a true
-            } catch (PDOException $e) {
-                echo "Error al asignar fondo al proyecto ID $id_proyecto: " . $e->getMessage();
+                $stmt_insert->bindParam(':id_nfinal', $id_nfinal, PDO::PARAM_INT);
+                
+                try {
+                    $stmt_insert->execute();
+                } catch (PDOException $e) {
+                    error_log("Error insertando premio $id_premio para ID_NFINAL $id_nfinal: " . $e->getMessage());
+                }
             }
         }
     }
-
-    // Actualizar asignaciones después de guardar
-    if ($success) {
-        try {
-            $stmt_asignaciones = $pdo->query("
-                SELECT ID_PROYECTO, ID_PREMIO
-                FROM PREMIO_NFINAL
-                JOIN NFINAL ON PREMIO_NFINAL.ID_NFINAL = NFINAL.ID_NFINAL
-            ");
-            $asignaciones_previas = $stmt_asignaciones->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            echo "Error al obtener asignaciones: " . $e->getMessage();
-        }
-    }
+    header("Location: " . $_SERVER['PHP_SELF'] . "?success=1");
+    exit();
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['eliminar_fondos'])) {
-    try {
-        $stmt_delete = $pdo->prepare("DELETE FROM PREMIO_NFINAL WHERE ID_NFINAL IN (SELECT ID_NFINAL FROM NFINAL WHERE ID_PROYECTO = :id_proyecto)");
+    $pdo->exec("DELETE FROM PREMIO_NFINAL");
+    header("Location: " . $_SERVER['PHP_SELF'] . "?deleted=1");
+    exit();
+}
 
-        foreach ($_POST['proyecto'] as $id_proyecto => $id_premio) {
-            if ($id_premio > 0) {
-                $stmt_delete->bindParam(':id_proyecto', $id_proyecto, PDO::PARAM_INT);
-                $stmt_delete->execute();
-            }
+if (isset($_GET['success']) && $_GET['success'] == 1) $success = true;
+if (isset($_GET['deleted']) && $_GET['deleted'] == 1) $deleted = true;
+
+// === CONSULTAS DE DATOS - MODIFICADO PARA USAR EL CÁLCULO DEL SEGUNDO CÓDIGO ===
+
+// Obtener actividades
+$query_actividades = "SELECT ID_ACTIVIDAD, NOM_ACTIVIDAD, PORCENTAJE FROM ACTIVIDAD ORDER BY ID_ACTIVIDAD";
+$stmt_actividades = $pdo->prepare($query_actividades);
+$stmt_actividades->execute();
+$actividades = $stmt_actividades->fetchAll(PDO::FETCH_ASSOC);
+
+// Obtener promedios por proyecto y actividad
+$query_promedio = "
+SELECT 
+    c.ID_PROYECTO,
+    c.ID_ACTIVIDAD,
+    AVG(c.CALIFICACION) AS promedio_nota
+FROM 
+    CALIFICACION c
+GROUP BY 
+    c.ID_PROYECTO, c.ID_ACTIVIDAD
+";
+$stmt = $pdo->prepare($query_promedio);
+$stmt->execute();
+$notas_promedio = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Crear una matriz de promedios de notas
+$proyectos_promedios = [];
+foreach ($notas_promedio as $nota) {
+    $proyectos_promedios[$nota['ID_PROYECTO']][$nota['ID_ACTIVIDAD']] = $nota['promedio_nota'];
+}
+
+// Identificar actividad 30% y actividad 70% (pitch)
+$id_actividad_30 = null;
+$id_actividad_70 = null;
+foreach ($actividades as $actividad) {
+    if ((int)$actividad['PORCENTAJE'] === 30) {
+        $id_actividad_30 = $actividad['ID_ACTIVIDAD'];
+    }
+    if ((int)$actividad['PORCENTAJE'] === 70 && stripos($actividad['NOM_ACTIVIDAD'], 'pitch') !== false) {
+        $id_actividad_70 = $actividad['ID_ACTIVIDAD'];
+    }
+}
+// Si no se detectó por nombre, usar la actividad 70% única
+if ($id_actividad_70 === null) {
+    foreach ($actividades as $actividad) {
+        if ((int)$actividad['PORCENTAJE'] === 70) {
+            $id_actividad_70 = $actividad['ID_ACTIVIDAD'];
+            break;
         }
-
-        $deleted = true; // Si la ejecución es exitosa, establecemos $deleted a true
-    } catch (PDOException $e) {
-        echo "Error al eliminar fondos: " . $e->getMessage();
     }
 }
 
-// Consulta para obtener las asignaciones de fondos
-$sql_asignaciones = "SELECT ID_PROYECTO, ID_PREMIO FROM PREMIO_NFINAL PN 
-                     JOIN NFINAL N ON PN.ID_NFINAL = N.ID_NFINAL";
-$stmt_asignaciones = $pdo->query($sql_asignaciones);
-$asignaciones = $stmt_asignaciones->fetchAll(PDO::FETCH_ASSOC);
+// OBTENER EL NÚMERO DE JURADOS ACTIVOS
+$query_jurados_activos = "
+SELECT COUNT(*) as total_jurados_activos 
+FROM USUARIO 
+WHERE ID_ROL IN (2, 3) AND ESTADO = 1";
+$stmt_jurados_activos = $pdo->prepare($query_jurados_activos);
+$stmt_jurados_activos->execute();
+$result_jurados_activos = $stmt_jurados_activos->fetch(PDO::FETCH_ASSOC);
+$numero_jurados_activos = $result_jurados_activos['total_jurados_activos'];
 
-// Crear un array para almacenar las asignaciones
-$asignaciones_map = [];
-foreach ($asignaciones as $asignacion) {
-    $asignaciones_map[$asignacion['ID_PROYECTO']] = $asignacion['ID_PREMIO'];
+// CONSULTA CORREGIDA: Obtener las notas individuales de los JURADOS ACTIVOS para el pitch
+$query_notas_pitch_jurados = "
+SELECT 
+    p.ID_PROYECTO,
+    p.PROYECTO,
+    c.CALIFICACION as nota_jurado,
+    u.ID_USUARIO,
+    CONCAT(u.NOMBRE, ' ', u.APELLIDO) as nombre_jurado
+FROM CALIFICACION c
+JOIN PROYECTO p ON p.ID_PROYECTO = c.ID_PROYECTO
+JOIN NOTA_CRITERIO_CALIFICACION ncc ON c.ID_CALIFICACION = ncc.ID_CALIFICACION
+JOIN NOTA_CRITERIO nc ON ncc.ID_NOTA_CRITERIO = nc.ID_NOTACRITERIO
+JOIN USUARIO u ON u.ID_USUARIO = nc.ID_USUARIO
+WHERE c.ID_ACTIVIDAD = :id_actividad_pitch
+AND u.ID_ROL IN (2, 3)  -- Solo jurados (ID_ROL 2 y 3)
+AND u.ESTADO = 1  -- SOLO JURADOS ACTIVOS
+GROUP BY p.ID_PROYECTO, u.ID_USUARIO, c.CALIFICACION
+ORDER BY p.ID_PROYECTO, u.ID_USUARIO
+";
+
+$stmt_pitch_jurados = $pdo->prepare($query_notas_pitch_jurados);
+$stmt_pitch_jurados->execute(['id_actividad_pitch' => $id_actividad_70]);
+$notas_pitch_jurados = $stmt_pitch_jurados->fetchAll(PDO::FETCH_ASSOC);
+
+// Organizar notas de jurados por proyecto
+$notas_jurados_por_proyecto = [];
+foreach ($notas_pitch_jurados as $nota) {
+    $id_proyecto = $nota['ID_PROYECTO'];
+    if (!isset($notas_jurados_por_proyecto[$id_proyecto])) {
+        $notas_jurados_por_proyecto[$id_proyecto] = [];
+    }
+    $notas_jurados_por_proyecto[$id_proyecto][] = $nota['nota_jurado'];
 }
 
+// Obtener lista única de proyectos
+$query_proyectos = "SELECT DISTINCT ID_PROYECTO, PROYECTO FROM PROYECTO ORDER BY ID_PROYECTO";
+$stmt_proyectos = $pdo->prepare($query_proyectos);
+$stmt_proyectos->execute();
+$todos_proyectos = $stmt_proyectos->fetchAll(PDO::FETCH_ASSOC);
+
+// Preparar arrays con valores calculados
+$notas_finales_calculadas = [];
+
+foreach ($todos_proyectos as $proyecto) {
+    $id_proyecto = $proyecto['ID_PROYECTO'];
+
+    // CALCULAR PROMEDIO DEL PITCH CON JURADOS ACTIVOS
+    $valor_pitch = 0;
+    
+    if ($id_actividad_70 !== null && isset($notas_jurados_por_proyecto[$id_proyecto])) {
+        // 1. Sumar todas las notas de los jurados ACTIVOS para este proyecto
+        $suma_notas_jurados = array_sum($notas_jurados_por_proyecto[$id_proyecto]);
+        
+        // 2. Contar cuántos jurados ACTIVOS calificaron este proyecto
+        $numero_jurados_que_calificaron = count($notas_jurados_por_proyecto[$id_proyecto]);
+        
+        // 3. Calcular promedio dividiendo entre el número de jurados que calificaron
+        if ($numero_jurados_que_calificaron > 0) {
+            $promedio_jurados = $suma_notas_jurados / $numero_jurados_que_calificaron;
+        } else {
+            $promedio_jurados = 0;
+        }
+        
+        // 4. Multiplicar por 70% para obtener el valor del pitch
+        $valor_pitch = $promedio_jurados * 0.70;
+    }
+
+    // Calcular valor de la primera evaluación (30%)
+    $valor_30 = 0;
+    if ($id_actividad_30 !== null && isset($proyectos_promedios[$id_proyecto][$id_actividad_30])) {
+        $valor_30 = $proyectos_promedios[$id_proyecto][$id_actividad_30] * 0.30;
+    }
+
+    // Nota final = (promedio pitch * 0.70) + (promedio primera evaluacion * 0.30)
+    $nota_final = $valor_pitch + $valor_30;
+    $notas_finales_calculadas[$id_proyecto] = $nota_final;
+}
+
+// Obtener ID_NFINAL para cada proyecto 
+$resultados = [];
+foreach ($todos_proyectos as $proyecto) {
+    $id_proyecto = $proyecto['ID_PROYECTO'];
+    $nota_final = $notas_finales_calculadas[$id_proyecto] ?? 0;
+    
+    // **USAR ID_ACTIVIDAD_FINAL (debes definir esta variable)**
+    // Si no la tienes, usa una actividad por defecto o crea una lógica para determinar cuál usar
+    $id_actividad_final = $id_actividad_70 ?? $id_actividad_30 ?? 1; // Ajusta según tu lógica
+    
+    // Crear o obtener ID_NFINAL
+    $id_nfinal = crearRegistroNfinal($pdo, $id_proyecto, $id_actividad_final, $nota_final);
+    
+    $resultados[] = [
+        'ID_PROYECTO' => $proyecto['ID_PROYECTO'],
+        'PROYECTO' => $proyecto['PROYECTO'],
+        'NOTA_FINAL' => isset($notas_finales_calculadas[$id_proyecto]) ? number_format($notas_finales_calculadas[$id_proyecto], 2) : 'N/A',
+        'ID_NFINAL' => $id_nfinal
+    ];
+}
+
+// Consultar fondos disponibles
+$stmt_fondos = $pdo->query("SELECT ID_PREMIO, PREMIO FROM PREMIO");
+$fondos = $stmt_fondos->fetchAll(PDO::FETCH_ASSOC);
+
+// Consultar asignaciones previas
+$stmt_asignaciones = $pdo->query("SELECT ID_NFINAL, ID_PREMIO FROM PREMIO_NFINAL");
+$asignaciones_previas = $stmt_asignaciones->fetchAll(PDO::FETCH_ASSOC);
+
+$asignaciones_map = [];
+foreach ($asignaciones_previas as $asignacion) {
+    $asignaciones_map[$asignacion['ID_NFINAL']][] = $asignacion['ID_PREMIO'];
+}
+
+// Calcular cantidad máxima de fondos asignados por proyecto (para definir columnas)
+$maxFondos = 1;
+foreach ($asignaciones_map as $fondosAsignados) {
+    if (count($fondosAsignados) > $maxFondos) {
+        $maxFondos = count($fondosAsignados);
+    }
+}
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="utf-8">
-    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
 
-    <title>Panel Jurado</title>
-    <meta content="" name="description">
-    <meta content="" name="keywords">
+<title>Panel Jurado</title>
+<link href="assets/img/favicon.png" rel="icon">
+<link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
 
-    <!-- Favicons -->
-    <link href="assets/img/favicon.png" rel="icon">
-    <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<!-- Google Fonts -->
+<link href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700|Nunito:300,400,600,700|Poppins:300,400,500,600,700" rel="stylesheet">
 
-    <!-- Google Fonts -->
-    <link href="https://fonts.gstatic.com" rel="preconnect">
-    <link
-        href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Nunito:300,300i,400,400i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i"
-        rel="stylesheet">
+<!-- Vendor CSS Files -->
+<link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+<link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+<link href="assets/vendor/boxicons/css/boxicons.min.css" rel="stylesheet">
+<link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
+<link href="assets/vendor/quill/quill.snow.css" rel="stylesheet">
+<link href="assets/vendor/quill/quill.bubble.css" rel="stylesheet">
+<link href="assets/vendor/simple-datatables/style.css" rel="stylesheet">
 
-    <!-- Vendor CSS Files -->
-    <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
-    <link href="assets/vendor/boxicons/css/boxicons.min.css" rel="stylesheet">
-    <link href="assets/vendor/quill/quill.snow.css" rel="stylesheet">
-    <link href="assets/vendor/quill/quill.bubble.css" rel="stylesheet">
-    <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
-    <link href="assets/vendor/simple-datatables/style.css" rel="stylesheet">
+<!-- Font Awesome -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 
-    <!-- Template Main CSS File -->
-    <link href="assets/css/style.css" rel="stylesheet">
+<!-- Template Main CSS File -->
+<link href="assets/css/style.css" rel="stylesheet">
+
+<style>
+.fondo-row { display:flex; align-items:center; margin-bottom:5px; }
+.fondo-row select { flex:1; min-width: 120px; }
+.fondo-row button { margin-left:5px; }
+.add-fondo-btn { margin-top:5px; }
+
+/* Estilos para tabla compacta */
+.table-compact th, 
+.table-compact td {
+    padding: 0.4rem 0.3rem;
+    font-size: 0.85rem;
+}
+
+.table-compact .btn-sm {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.75rem;
+}
+
+.table-compact .form-select {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.8rem;
+}
+
+/* Scroll horizontal cuando hay muchas columnas */
+.table-responsive {
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+/* Sin scroll por defecto */
+.table-responsive.no-scroll {
+    overflow-x: visible;
+}
+
+/* Con scroll cuando hay muchas columnas */
+.table-responsive.with-scroll {
+    overflow-x: auto;
+}
+
+/* Columnas más compactas */
+.col-proyecto { min-width: 200px; max-width: 250px; }
+.col-nota { min-width: 100px; max-width: 120px; }
+.col-beneficio { min-width: 150px; max-width: 180px; }
+.col-accion { min-width: 140px; max-width: 160px; }
+
+/* Asegurar que la tabla no se desborde */
+#tablaFondos {
+    width: auto !important;
+    min-width: 100%;
+    table-layout: fixed;
+}
+
+/* Responsive para pantallas pequeñas */
+@media (max-width: 768px) {
+    .table-compact th, 
+    .table-compact td {
+        padding: 0.3rem 0.2rem;
+        font-size: 0.8rem;
+    }
+    
+    .col-proyecto { min-width: 150px; max-width: 200px; }
+    .col-beneficio { min-width: 130px; max-width: 160px; }
+    .col-accion { min-width: 120px; max-width: 140px; }
+    
+    .fondo-row {
+        flex-direction: column;
+        gap: 2px;
+    }
+    
+    .fondo-row select {
+        min-width: 100px;
+    }
+}
+
+/* Estilo para el botón Guardar sin texto extra */
+.btn-guardar {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-guardar::after {
+    content: "";
+    display: none;
+}
+</style>
 </head>
 
 <body>
 
-    <!-- ======= Header ======= -->
-    <header id="header" class="header fixed-top d-flex align-items-center">
-
-        <div class="d-flex align-items-center justify-content-between">
-            <a href="panel_juradop.php" class="logo d-flex align-items-center">
-                <img src="assets/img/logo.png" alt="" style="width: 100px; height: auto;">
-            </a>
-            <i class="bi bi-list toggle-sidebar-btn"></i>
-        </div><!-- End Logo -->
-
-        <nav class="header-nav ms-auto">
-            <ul class="d-flex align-items-center">
-
-                </li><!-- End Messages Nav -->
-
-                <li class="nav-item dropdown pe-3">
-
-                    <a class="nav-link nav-profile d-flex align-items-center pe-0" href="#" data-bs-toggle="dropdown">
-                        <span class="d-none d-md-block dropdown-toggle ps-2"><?php echo $nombre_usuario ?></span>
-
-                    </a><!-- End Profile Iamge Icon -->
-
-                    <ul class="dropdown-menu dropdown-menu-end dropdown-menu-arrow profile">
-                        <li class="dropdown-header">
-                            <h6><?php echo $nombre_usuario ?></h6>
-                            <span><?php echo $rol ?></span>
-                        </li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="user-profilep.php">
-                                <i class="bi bi-person"></i>
-                                <span>Perfil</span>
-                            </a>
-                        </li>
-
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="index.php">
-                                <i class="bi bi-box-arrow-right"></i>
-                                <span>Cerrar Sesion</span>
-                            </a>
-                        </li>
-
-                    </ul><!-- End Profile Dropdown Items -->
-                </li><!-- End Profile Nav -->
-
-            </ul>
-        </nav><!-- End Icons Navigation -->
-
-    </header><!-- End Header -->
-
-    <!-- ======= Sidebar ======= -->
-    <aside id="sidebar" class="sidebar">
-
-        <ul class="sidebar-nav" id="sidebar-nav">
-
-            <li class="nav-item">
-                <a class="nav-link collapsed" href="panel_juradop.php">
-                    <i class="bi bi-grid"></i>
-                    <span>Panel Jurado</span>
-                </a>
-            </li><!-- End Dashboard Nav -->
-
-            <li class="nav-item">
-                <a class="nav-link collapsed" data-bs-target="#evaluacion-nav" data-bs-toggle="collapse" href="#">
-                    <i class="bi bi-check-circle"></i><span>Evaluación</span><i class="bi bi-chevron-down ms-auto"></i>
-                </a>
-                <ul id="evaluacion-nav" class="nav-content collapse" data-bs-parent="#sidebar-nav">
-                    <!-- Aquí se cargarán dinámicamente las actividades -->
-                    <?php
-                    include 'bdd/database.php'; // Asegúrate de tener una conexión PDO en este archivo
-
-                    $sql = "SELECT ID_ACTIVIDAD, NOM_ACTIVIDAD, PORCENTAJE FROM ACTIVIDAD"; // Ajusta el nombre de la tabla y los campos según tu base de datos
-                    $stmt = $pdo->prepare($sql);
-                    $stmt->execute();
-                    $actividades = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                    if ($actividades) {
-                        foreach ($actividades as $actividad) {
-                            echo '<li>';
-                            echo '<a href="calificarp.php?id=' . $actividad["ID_ACTIVIDAD"] . '">';
-                            echo '<i class="bi bi-circle"></i><span>' . $actividad["NOM_ACTIVIDAD"] . ' (' . $actividad["PORCENTAJE"] . '%)</span>';
-                            echo '</a>';
-                            echo '</li>';
-                        }
-                    } else {
-                        echo '<li><a href="#"><span>No hay actividades disponibles</span></a></li>';
-                    }
-                    ?>
-                </ul>
-            </li><!-- End Evaluación Nav -->
-
-            <li class="nav-item">
-                <a class="nav-link collapsed" data-bs-target="#components-nav" data-bs-toggle="collapse" href="#">
-                    <i class="bi bi-menu-button-wide"></i><span>Resultados</span><i class="bi bi-chevron-down ms-auto"></i>
-                </a>
-                <ul id="components-nav" class="nav-content collapse " data-bs-parent="#sidebar-nav">
-                    <li>
-                        <a href="resultadosindividualesp.php">
-                            <i class="bi bi-circle"></i><span>Resultados Individuales</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="resultadosdetalladosp.php">
-                            <i class="bi bi-circle"></i><span>Resultados Específicos</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="resultadosglobalesp.php">
-                            <i class="bi bi-circle"></i><span>Resultados Globales</span>
-                        </a>
-                    </li>
-
-                </ul>
-            </li><!-- End Components Nav -->
-
-            <li class="nav-item">
-                <a class="nav-link" href="fondos.php">
-                    <i class="bi bi-piggy-bank"></i>
-                    <span>Asignar Fondos</span>
-                </a>
-
-            </li><!-- End Icons Nav -->
-
-            <li class="nav-item">
-                <a class="nav-link collapsed" href="resultadosfondosp.php">
-                    <i class="bi bi-gem"></i>
-                    <span>Fondos asignados</span>
-                </a>
-
-            </li><!-- End Icons Nav -->
-
-            <li class="nav-item">
-                <a class="nav-link collapsed" href="user-profilep.php">
-                    <i class="bi bi-person"></i>
-                    <span>Perfil</span>
-                </a>
-            </li><!-- End Profile Page Nav -->
-
-            <li class="nav-item">
-                <a class="nav-link collapsed" href="manual_juradop.php">
-                    <i class="bi bi-question-circle"></i>
-                    <span>Manual</span>
-                </a>
-            </li><!-- End F.A.Q Page Nav -->
-
-        </ul>
-
-    </aside><!-- End Sidebar-->
-
-    <main id="main" class="main">
-        <div class="pagetitle">
-            <h1>Resultados Finales y Fondos</h1>
-            <nav>
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="panel_juradop.php">Inicio</a></li>
-                    <li class="breadcrumb-item active">Resultados Finales y Fondos</li>
-                </ol>
-            </nav>
-        </div><!-- End Page Title -->
-
-        <section class="section dashboard">
-            <div class="row">
-                <div class="col-lg-12">
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-body">
-                                    <h5 class="card-title"> Asignacion de fondos<span> | Resultados Finales</span></h5>
-                                    <?php if ($success): ?>
-                                        <div class="alert alert-success alert-dismissible fade show" role="alert" id="success-alert">
-                                            ¡Fondos asignados con éxito!
-                                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                                        </div>
-                                        <script>
-                                            setTimeout(function() {
-                                                var alertElement = document.getElementById('success-alert');
-                                                if (alertElement) {
-                                                    alertElement.style.display = 'none';
-                                                }
-                                            }, 3000); // El alert desaparecerá después de 3 segundos
-                                        </script>
-                                    <?php endif; ?>
-                                    <?php if (isset($deleted) && $deleted): ?>
-                                        <div class="alert alert-danger alert-dismissible fade show" role="alert" id="success-alert">
-                                            ¡Fondos eliminados con éxito!
-                                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                                        </div>
-                                        <script>
-                                            setTimeout(function() {
-                                                window.location.href = 'fondos.php';
-                                            }, 3000); // 3000 milisegundos = 3 segundos
-                                        </script>
-                                    <?php endif; ?>
-
-                                    <form method="post">
-                                        <table class="table table-bordered">
-                                            <thead>
-                                                <tr>
-                                                    <th scope="col">Proyecto</th>
-                                                    <th scope="col">
-                                                        Nota Final
-                                                        <button class="btn-modify" data-order="asc" type="button" onclick="ordenarNotas()" style="margin-left: 5px;">
-                                                            <i class="fas fa-sort-amount-down"></i>
-                                                        </button>
-                                                    </th>
-                                                    <th scope="col">Asignar Fondo</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <?php foreach ($resultados as $resultado): ?>
-                                                    <tr>
-                                                        <td><?php echo htmlspecialchars($resultado['PROYECTO']); ?></td>
-                                                        <td class="final-grade"><?php echo htmlspecialchars($resultado['NOTA_FINAL']); ?></td>
-                                                        <td>
-                                                            <div style="display: flex; align-items: center;">
-                                                                <input type="hidden" name="proyecto[<?php echo $resultado['ID_PROYECTO']; ?>]" value="0">
-                                                                <select name="proyecto[<?php echo $resultado['ID_PROYECTO']; ?>]"
-                                                                    class="form-select fondo-select"
-                                                                    aria-label="Seleccionar fondo"
-                                                                    onchange="deshabilitarFondo(this)"
-                                                                    <?php if (isset($asignaciones_map[$resultado['ID_PROYECTO']])) {
-                                                                        echo 'disabled';
-                                                                    } ?>>
-
-                                                                    <option value="">Seleccionar fondo</option>
-
-                                                                    <?php foreach ($fondos as $fondo): ?>
-                                                                        <option value="<?php echo $fondo['ID_PREMIO']; ?>"
-                                                                            <?php if (isset($asignaciones_map[$resultado['ID_PROYECTO']]) && $asignaciones_map[$resultado['ID_PROYECTO']] == $fondo['ID_PREMIO']) {
-                                                                                echo 'selected'; // Mantener la selección
-                                                                            } ?>>
-                                                                            <?php echo htmlspecialchars($fondo['PREMIO']); ?>
-                                                                        </option>
-                                                                    <?php endforeach; ?>
-                                                                </select>
-
-                                                                <button class="btn btn-warning btn-sm" style="margin-left: 5px; display: none;" onclick="restoreSelection(this)" type="button">
-                                                                    <i class='fas fa-edit'></i>
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                <?php endforeach; ?>
-                                            </tbody>
-
-                                        </table>
-                                        <div style="text-align: right;">
-    <?php if (!empty($asignaciones_previas)): // Si ya hay asignaciones previas ?>
-        <button type="submit" name="eliminar_fondos" class="btn btn-primary" onclick="return confirm('¿Estás seguro de eliminar esta asignación de fondos?');">
-            Eliminar
-        </button>
-    <?php else: ?>
-        <button type="submit" name="asignar_fondos" class="btn btn-primary">
-            Guardar
-        </button>
-    <?php endif; ?>
-    <a href="fondos.php" class="btn btn-secondary">Cancelar</a>
-</div>
-
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </main>
-
-      <!-- ======= Footer ======= -->
-  <footer id="footer" class="footer">
-    <div class="copyright">
-      &copy; Copyright <strong><span>Ayudando a quienes ayudan</span></strong>. Todos los derechos reservados.
+<!-- ======= Header ======= -->
+<header id="header" class="header fixed-top d-flex align-items-center">
+    <div class="d-flex align-items-center justify-content-between">
+        <a href="panel_juradop.php" class="logo d-flex align-items-center">
+            <img src="assets/img/logo.png" alt="" style="width: 100px; height: auto;">
+        </a>
+        <i class="bi bi-list toggle-sidebar-btn"></i>
     </div>
-  </footer><!-- End Footer -->
+    <nav class="header-nav ms-auto">
+        <ul class="d-flex align-items-center">
+            <li class="nav-item dropdown pe-3">
+                <a class="nav-link nav-profile d-flex align-items-center pe-0" href="#" data-bs-toggle="dropdown">
+                    <span class="d-none d-md-block dropdown-toggle ps-2"><?php echo $nombre_usuario ?></span>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end dropdown-menu-arrow profile">
+                    <li class="dropdown-header">
+                        <h6><?php echo $nombre_usuario ?></h6>
+                        <span><?php echo $rol ?></span>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center" href="user-profilep.php">
+                            <i class="bi bi-person"></i>
+                            <span>Perfil</span>
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center" href="index.php">
+                            <i class="bi bi-box-arrow-right"></i>
+                            <span>Cerrar Sesion</span>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+        </ul>
+    </nav>
+</header>
 
-
-    </script>
-
-    <script>
-        function ordenarNotas() {
-            // Obtener el botón y el estado actual de orden
-            var button = document.querySelector('.btn-modify');
-            var order = button.getAttribute('data-order');
-
-            // Obtener la tabla y las filas
-            var table = document.querySelector('.table-bordered tbody');
-            var rows = Array.from(table.querySelectorAll('tr'));
-
-            // Función de comparación para ordenar
-            rows.sort(function(rowA, rowB) {
-                // Obtener las notas de las dos filas
-                var notaA = parseFloat(rowA.querySelector('td:nth-child(2)').innerText);
-                var notaB = parseFloat(rowB.querySelector('td:nth-child(2)').innerText);
-
-                // Comparar según el orden actual
-                if (order === 'asc') {
-                    return notaA - notaB; // Orden ascendente
+<!-- ======= Sidebar ======= -->
+<aside id="sidebar" class="sidebar">
+    <ul class="sidebar-nav" id="sidebar-nav">
+        <li class="nav-item">
+            <a class="nav-link collapsed" href="panel_juradop.php">
+                <i class="bi bi-grid"></i>
+                <span>Panel Jurado</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link collapsed" data-bs-target="#evaluacion-nav" data-bs-toggle="collapse" href="#">
+                <i class="bi bi-check-circle"></i><span>Evaluación</span><i class="bi bi-chevron-down ms-auto"></i>
+            </a>
+            <ul id="evaluacion-nav" class="nav-content collapse" data-bs-parent="#sidebar-nav">
+                <?php
+                $sql = "SELECT ID_ACTIVIDAD, NOM_ACTIVIDAD, PORCENTAJE FROM ACTIVIDAD";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute();
+                $actividades = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                if ($actividades) {
+                    foreach ($actividades as $actividad) {
+                        echo '<li><a href="calificarp.php?id='.$actividad["ID_ACTIVIDAD"].'">';
+                        echo '<i class="bi bi-circle"></i><span>'.$actividad["NOM_ACTIVIDAD"].' ('.$actividad["PORCENTAJE"].'%)</span></a></li>';
+                    }
                 } else {
-                    return notaB - notaA; // Orden descendente
+                    echo '<li><a href="#"><span>No hay actividades disponibles</span></a></li>';
+                }
+                ?>
+            </ul>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link collapsed" data-bs-target="#components-nav" data-bs-toggle="collapse" href="#">
+                <i class="bi bi-menu-button-wide"></i><span>Resultados</span><i class="bi bi-chevron-down ms-auto"></i>
+            </a>
+            <ul id="components-nav" class="nav-content collapse" data-bs-parent="#sidebar-nav">
+                <li><a href="resultadosindividualesp.php"><i class="bi bi-circle"></i><span>Resultados Individuales</span></a></li>
+                <li><a href="resultadosdetalladosp.php"><i class="bi bi-circle"></i><span>Resultados Específicos</span></a></li>
+                <li><a href="resultadosglobalesp.php"><i class="bi bi-circle"></i><span>Resultados Globales</span></a></li>
+            </ul>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="fondos.php">
+                <i class="bi bi-piggy-bank"></i>
+                <span>Asignar Fondos</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link collapsed" href="resultadosfondosp.php">
+                <i class="bi bi-gem"></i>
+                <span>Fondos asignados</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link collapsed" href="user-profilep.php">
+                <i class="bi bi-person"></i>
+                <span>Perfil</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link collapsed" href="manual_juradop.php">
+                <i class="bi bi-question-circle"></i>
+                <span>Manual</span>
+            </a>
+        </li>
+    </ul>
+</aside>
+
+<main id="main" class="main">
+    <div class="pagetitle">
+        <h1>Resultados Finales y Fondos</h1>
+    </div>
+    <section class="section dashboard">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Asignación de fondos | Resultados Finales</h5>
+
+                <?php if ($success): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        ¡Beneficios asignados con éxito!
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($deleted): ?>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        ¡Beneficios eliminados con éxito!
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                <?php endif; ?>
+
+                <form method="post">
+                    <div class="table-responsive <?php echo $maxFondos >= 4 ? 'with-scroll' : 'no-scroll'; ?>" id="tableContainer">
+                        <table id="tablaFondos" class="table table-bordered table-compact text-center align-middle">
+                            <thead>
+                                <tr id="encabezado">
+                                    <th class="col-proyecto">Proyecto</th>
+                                    <th class="col-nota">Nota Final
+                                        <button class="btn btn-primary btn-sm" data-order="asc" type="button" onclick="ordenarNotas()" style="margin-left:5px;">
+                                            <i class="fas fa-sort-amount-down"></i>
+                                        </button>
+                                    </th>
+                                    <?php for ($i = 1; $i <= $maxFondos; $i++): ?>
+                                        <th class="col-beneficio">Beneficio <?php echo $i; ?></th>
+                                    <?php endfor; ?>
+                                    <th class="col-accion">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($resultados as $resultado): ?>
+                                    <?php 
+                                        $fondosAsignados = $asignaciones_map[$resultado['ID_NFINAL']] ?? [];
+                                        $numActual = count($fondosAsignados);
+                                    ?>
+                                    <tr data-nfinal="<?php echo $resultado['ID_NFINAL']; ?>">
+                                        <td class="col-proyecto"><?php echo htmlspecialchars($resultado['PROYECTO']); ?></td>
+                                        <td class="col-nota final-grade"><?php echo htmlspecialchars($resultado['NOTA_FINAL']); ?></td>
+
+                                        <?php for ($i = 0; $i < $maxFondos; $i++): ?>
+                                            <td class="col-beneficio">
+                                                <div class="fondo-row d-flex justify-content-center align-items-center gap-1">
+                                                    <select name="fondos[<?php echo $resultado['ID_NFINAL']; ?>][]" class="form-select form-select-sm">
+                                                        <option value="">Seleccionar</option>
+                                                        <?php foreach ($fondos as $fondo): ?>
+                                                            <option value="<?php echo $fondo['ID_PREMIO']; ?>" 
+                                                                <?php echo ($i < $numActual && $fondosAsignados[$i] == $fondo['ID_PREMIO']) ? 'selected' : ''; ?>>
+                                                                <?php echo htmlspecialchars($fondo['PREMIO']); ?>
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                    <button type="button" class="btn btn-danger btn-sm remove-fondo">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        <?php endfor; ?>
+
+                                        <td class="col-accion">
+                                            <button type="button" class="btn btn-success btn-sm add-column-btn">
+                                                <i class="fas fa-plus"></i> Agregar fondo
+                                            </button>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="text-end mt-3">
+                        <button type="submit" name="asignar_fondos" class="btn btn-primary btn-guardar">Guardar</button>
+                        <button type="submit" name="eliminar_fondos" class="btn btn-danger" onclick="return confirm('¿Estás seguro de que deseas eliminar todos los fondos?')">Eliminar todos</button>
+                        <a href="fondos.php" class="btn btn-secondary">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+</main>
+
+<footer id="footer" class="footer">
+    <div class="copyright">
+        &copy; Copyright <strong><span>Ayudando a quienes ayudan</span></strong>. Todos los derechos reservados.
+    </div>
+</footer>
+
+<script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="assets/vendor/jquery/jquery.min.js"></script>
+<script src="assets/vendor/simple-datatables/simple-datatables.js"></script>
+<script src="assets/vendor/quill/quill.min.js"></script>
+<script src="assets/js/main.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const tabla = document.getElementById("tablaFondos");
+    const encabezado = document.getElementById("encabezado");
+    const tableContainer = document.getElementById("tableContainer");
+    let currentColumns = <?php echo $maxFondos; ?>;
+
+    // === FUNCIÓN PARA EVITAR FONDOS DUPLICADOS POR PROYECTO ===
+    function actualizarOpciones(fila) {
+        const selects = fila.querySelectorAll('select');
+        const seleccionados = Array.from(selects)
+            .map(s => s.value)
+            .filter(v => v !== "");
+
+        selects.forEach(select => {
+            select.querySelectorAll('option').forEach(option => {
+                if (option.value !== "" && seleccionados.includes(option.value) && option.value !== select.value) {
+                    option.disabled = true;
+                } else {
+                    option.disabled = false;
                 }
             });
+        });
+    }
 
-            // Remover las filas existentes y agregar las ordenadas
-            table.innerHTML = "";
-            rows.forEach(function(row) {
-                table.appendChild(row);
-            });
-
-            // Cambiar el estado de orden y el icono en el botón
-            if (order === 'asc') {
-                button.setAttribute('data-order', 'desc');
-                button.querySelector('i').classList.remove('fa-sort-amount-down');
-                button.querySelector('i').classList.add('fa-sort-amount-up');
-            } else {
-                button.setAttribute('data-order', 'asc');
-                button.querySelector('i').classList.remove('fa-sort-amount-up');
-                button.querySelector('i').classList.add('fa-sort-amount-down');
-            }
-        }
-    </script>
-    <script>
-        // Función para deshabilitar visualmente el select cuando se elige una opción
-        function deshabilitarFondo(selectElement) {
-            if (selectElement.value !== "") {
-                // Deshabilitar visualmente el select
-                selectElement.disabled = true;
-
-                // Mostrar el botón de editar
-                const restoreButton = selectElement.nextElementSibling;
-                restoreButton.style.display = 'inline-block';
-            }
+    // === AGREGAR NUEVA COLUMNA DE FONDOS A TODOS LOS PROYECTOS ===
+    document.addEventListener("click", function(e) {
+        if (e.target.closest(".add-column-btn")) {
+            agregarNuevaColumna();
         }
 
-        // Función para habilitar el select nuevamente
-        function restoreSelection(button) {
-            const selectElement = button.previousElementSibling;
-            selectElement.disabled = false; // Habilitar el select
-            button.style.display = 'none'; // Ocultar el botón de restaurar
+        // Eliminar fondo (botón )
+        if (e.target.closest(".remove-fondo")) {
+            const fila = e.target.closest("tr");
+            e.target.closest(".fondo-row").querySelector("select").value = "";
+            actualizarOpciones(fila);
         }
+    });
 
-        // Antes de enviar el formulario, habilitar todos los selects
-        document.querySelector("form").addEventListener("submit", function() {
-            const selects = document.querySelectorAll(".fondo-select");
-            selects.forEach(function(select) {
-                select.disabled = false; // Asegurarse de que todos los selects estén habilitados antes de enviar
-            });
-        });
-    </script>
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            const selectElements = document.querySelectorAll(".fondo-select");
+    // === FUNCIÓN QUE AGREGA UNA NUEVA COLUMNA CON SELECTS A CADA FILA ===
+    function agregarNuevaColumna() {
+        currentColumns++;
+        const th = document.createElement("th");
+        th.textContent = "Beneficio " + currentColumns;
+        th.className = "col-beneficio";
+        encabezado.insertBefore(th, encabezado.lastElementChild);
 
-            // Función para deshabilitar las opciones seleccionadas en los otros selects
-            function actualizarFondosDisponibles() {
-                const selectedValues = Array.from(selectElements)
-                    .map(select => select.value)
-                    .filter(value => value !== ""); // Filtramos solo los select que tienen un valor seleccionado
+        const filas = tabla.querySelectorAll("tbody tr");
+        filas.forEach(fila => {
+            const idNFinal = fila.dataset.nfinal;
+            const nuevaCelda = document.createElement("td");
+            nuevaCelda.className = "col-beneficio";
+            nuevaCelda.innerHTML = `
+                <div class="fondo-row d-flex justify-content-center align-items-center gap-1">
+                    <select name="fondos[${idNFinal}][]" class="form-select form-select-sm">
+                        <option value="">Seleccionar</option>
+                        <?php foreach ($fondos as $fondo): ?>
+                            <option value="<?php echo $fondo['ID_PREMIO']; ?>"><?php echo htmlspecialchars($fondo['PREMIO']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="button" class="btn btn-danger btn-sm remove-fondo"><i class="fas fa-trash"></i></button>
+                </div>
+            `;
+            fila.insertBefore(nuevaCelda, fila.querySelector(".col-accion"));
 
-                // Recorremos cada select para habilitar o deshabilitar opciones
-                selectElements.forEach(select => {
-                    const options = select.querySelectorAll("option");
+            // Ligar evento change para evitar duplicados dentro del proyecto
+            const select = nuevaCelda.querySelector('select');
+            select.addEventListener('change', () => actualizarOpciones(fila));
 
-                    options.forEach(option => {
-                        if (selectedValues.includes(option.value) && option.value !== select.value) {
-                            // Deshabilitar la opción si está seleccionada en otro select
-                            option.disabled = true;
-                        } else {
-                            // Habilitar la opción si no está seleccionada
-                            option.disabled = false;
-                        }
-                    });
-                });
-            }
-
-            // Añadimos el evento change a cada select para actualizar los fondos disponibles al cambiar
-            selectElements.forEach(select => {
-                select.addEventListener("change", function() {
-                    actualizarFondosDisponibles();
-                });
-            });
-
-            // Llamamos a la función inicial para deshabilitar fondos ya seleccionados en caso de que existan selecciones iniciales
-            actualizarFondosDisponibles();
+            actualizarOpciones(fila); // Inicializa la validación
         });
 
-        document.querySelector("form").addEventListener("submit", function() {
-            const selects = document.querySelectorAll(".fondo-select");
-            selects.forEach(function(select) {
-                select.disabled = false; // Asegúrate de que todos los selects estén habilitados antes de enviar
-            });
-        });
-    </script>
-    <script>
-        document.querySelector('.toggle-sidebar-btn').addEventListener('click', function() {
-            document.getElementById('sidebar').classList.toggle('active');
-            document.getElementById('main').classList.toggle('active');
-        });
-    </script>
+        // Actualizar estado del scroll
+        updateTableState();
+    }
+
+    // === ACTUALIZAR ESTADO DE LA TABLA ===
+    function updateTableState() {
+        // Activar scroll cuando hay 4 o más columnas para mejor visualización
+        if (currentColumns >= 4) {
+            tableContainer.classList.remove('no-scroll');
+            tableContainer.classList.add('with-scroll');
+        } else {
+            tableContainer.classList.remove('with-scroll');
+            tableContainer.classList.add('no-scroll');
+        }
+    }
+
+    // === ACTUALIZAR OPCIONES AL CAMBIAR SELECT EXISTENTE ===
+    document.addEventListener('change', function(e){
+        if(e.target.tagName === 'SELECT'){
+            const fila = e.target.closest('tr');
+            actualizarOpciones(fila);
+        }
+    });
+
+    // Inicializar validaciones al cargar
+    tabla.querySelectorAll('tbody tr').forEach(fila => actualizarOpciones(fila));
+    updateTableState();
+});
+
+// Función para ordenar notas
+function ordenarNotas() {
+    var button = document.querySelector('.btn-primary');
+    var order = button.getAttribute('data-order');
+    var table = document.querySelector('.table-bordered tbody');
+    var rows = Array.from(table.querySelectorAll('tr'));
+
+    rows.sort(function(rowA, rowB) {
+        var notaA = parseFloat(rowA.querySelector('.final-grade').textContent) || 0;
+        var notaB = parseFloat(rowB.querySelector('.final-grade').textContent) || 0;
+        return order === 'asc' ? notaA - notaB : notaB - notaA;
+    });
+
+    table.innerHTML = "";
+    rows.forEach(r => table.appendChild(r));
+
+    if (order === 'asc') {
+        button.setAttribute('data-order', 'desc');
+        button.querySelector('i').classList.replace('fa-sort-amount-down', 'fa-sort-amount-up');
+    } else {
+        button.setAttribute('data-order', 'asc');
+        button.querySelector('i').classList.replace('fa-sort-amount-up', 'fa-sort-amount-down');
+    }
+}
+
+// Script para ocultar/mostrar el menú lateral 
+document.querySelector('.toggle-sidebar-btn').addEventListener('click', function() {
+    document.getElementById('sidebar').classList.toggle('active');
+    document.getElementById('main').classList.toggle('active');
+});
+</script>
+
 </body>
-
 </html>

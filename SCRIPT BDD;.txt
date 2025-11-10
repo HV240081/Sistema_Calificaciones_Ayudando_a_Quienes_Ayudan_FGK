@@ -1,159 +1,931 @@
+-- phpMyAdmin SQL Dump
+-- version 5.2.1
+-- https://www.phpmyadmin.net/
+--
+-- Servidor: 127.0.0.1:3306
+-- Tiempo de generación: 10-11-2025 a las 06:51:32
+-- Versión del servidor: 9.1.0
+-- Versión de PHP: 8.3.14
+
 CREATE DATABASE PROYECTO_ES;
 
 USE PROYECTO_ES;
 
-CREATE TABLE ROL (
-    ID_ROL INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    ROL VARCHAR(50) NOT NULL
-);
+CREATE USER 'userproyect'@'localhost' IDENTIFIED BY 'FGK202412345';
 
-CREATE TABLE USUARIO (
-    ID_USUARIO INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    NOMBRE VARCHAR(25) NOT NULL,
-    APELLIDO VARCHAR(30) NOT NULL,
-    CONTRASENA VARCHAR(9) NOT NULL,
-    TEMPORAL TINYINT NOT NULL,
-    ID_ROL INT NOT NULL,
-    FOREIGN KEY (ID_ROL) REFERENCES ROL(ID_ROL)
-);
+GRANT ALL PRIVILEGES ON proyecto_es.* TO 'userproyect'@'localhost';
 
-CREATE TABLE PERMISOS (
-    ID_PERMISO INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    PERMISO VARCHAR(2) NOT NULL,
-    DESCRIPCION VARCHAR(50) NOT NULL
-);
+FLUSH PRIVILEGES;
+
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+
+--
+-- Base de datos: `proyecto_es`
+--
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `actividad`
+--
+
+DROP TABLE IF EXISTS `actividad`;
+CREATE TABLE IF NOT EXISTS `actividad` (
+  `ID_ACTIVIDAD` int NOT NULL AUTO_INCREMENT,
+  `NOM_ACTIVIDAD` varchar(30) COLLATE utf8mb4_general_ci NOT NULL,
+  `PORCENTAJE` double(5,2) NOT NULL,
+  `DESCRIPCION` varchar(60) COLLATE utf8mb4_general_ci NOT NULL,
+  `ID_PERMISO` int NOT NULL,
+  PRIMARY KEY (`ID_ACTIVIDAD`),
+  KEY `ID_PERMISO` (`ID_PERMISO`)
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `actividad`
+--
+
+INSERT INTO `actividad` (`ID_ACTIVIDAD`, `NOM_ACTIVIDAD`, `PORCENTAJE`, `DESCRIPCION`, `ID_PERMISO`) VALUES
+(10, 'Evaluacion Pitch', 70.00, 'Elevator Pitch', 1),
+(12, 'PRIMERA FASE', 30.00, 'PRIMERA FASE', 2);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `backup_calificacion`
+--
+
+DROP TABLE IF EXISTS `backup_calificacion`;
+CREATE TABLE IF NOT EXISTS `backup_calificacion` (
+  `ID_CALIFICACION` int NOT NULL DEFAULT '0',
+  `CALIFICACION` double(5,2) NOT NULL,
+  `ID_ACTIVIDAD` int NOT NULL,
+  `ID_PROYECTO` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `backup_calificacion`
+--
+
+INSERT INTO `backup_calificacion` (`ID_CALIFICACION`, `CALIFICACION`, `ID_ACTIVIDAD`, `ID_PROYECTO`) VALUES
+(275, 7.62, 12, 1),
+(276, 7.54, 12, 2),
+(277, 7.23, 12, 3),
+(278, 6.80, 12, 4),
+(279, 6.76, 12, 5),
+(280, 6.66, 12, 6),
+(281, 6.59, 12, 7),
+(282, 6.45, 12, 8),
+(283, 6.42, 12, 9),
+(284, 6.40, 12, 10),
+(303, 8.67, 10, 3),
+(304, 8.00, 10, 3),
+(305, 7.67, 10, 3),
+(306, 5.00, 10, 3),
+(307, 7.00, 10, 5),
+(308, 9.00, 10, 5),
+(309, 7.33, 10, 5),
+(310, 8.33, 10, 5),
+(311, 8.33, 10, 5),
+(312, 6.00, 10, 7),
+(313, 7.33, 10, 7),
+(314, 7.67, 10, 7),
+(315, 7.33, 10, 7),
+(316, 8.00, 10, 7),
+(317, 8.33, 10, 2),
+(318, 8.33, 10, 2),
+(319, 7.67, 10, 2),
+(320, 7.83, 10, 2),
+(321, 8.00, 10, 2),
+(322, 8.00, 10, 9),
+(323, 8.67, 10, 9),
+(324, 8.67, 10, 9),
+(325, 8.67, 10, 9),
+(326, 7.67, 10, 9),
+(327, 9.00, 10, 1),
+(328, 8.00, 10, 1),
+(329, 8.00, 10, 1),
+(330, 7.67, 10, 1),
+(332, 8.67, 10, 6),
+(333, 7.00, 10, 6),
+(334, 8.33, 10, 6),
+(335, 8.33, 10, 6),
+(336, 8.25, 10, 6),
+(337, 9.33, 10, 3),
+(338, 8.00, 10, 4),
+(339, 9.33, 10, 4),
+(340, 7.33, 10, 4),
+(341, 8.67, 10, 4),
+(342, 10.00, 10, 8),
+(343, 10.00, 10, 8),
+(344, 9.00, 10, 8),
+(345, 8.50, 10, 8),
+(346, 7.67, 10, 8),
+(347, 7.00, 10, 10),
+(348, 6.33, 10, 10),
+(349, 7.00, 10, 10),
+(350, 7.00, 10, 10),
+(351, 7.67, 10, 10),
+(352, 7.00, 10, 4),
+(353, 5.67, 10, 3),
+(354, 7.67, 10, 5),
+(355, 4.67, 10, 7),
+(356, 7.67, 10, 2),
+(359, 6.00, 10, 6),
+(360, 6.00, 10, 4),
+(361, 9.00, 10, 8),
+(362, 6.00, 10, 10),
+(364, 6.67, 10, 9);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `backup_notas`
+--
+
+DROP TABLE IF EXISTS `backup_notas`;
+CREATE TABLE IF NOT EXISTS `backup_notas` (
+  `ID_NOTAS` int NOT NULL DEFAULT '0',
+  `COMENTARIOS` varchar(200) COLLATE utf8mb4_general_ci NOT NULL,
+  `CALIFICACION` double(5,2) NOT NULL,
+  `ID_USUARIO` int NOT NULL,
+  `ID_PROYECTO` int NOT NULL,
+  `ID_CALIFICACION` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `backup_notas`
+--
+
+INSERT INTO `backup_notas` (`ID_NOTAS`, `COMENTARIOS`, `CALIFICACION`, `ID_USUARIO`, `ID_PROYECTO`, `ID_CALIFICACION`) VALUES
+(251, '', 8.24, 8, 3, 303),
+(252, '', 7.77, 11, 3, 304),
+(253, '', 7.54, 10, 3, 305),
+(254, 'Interesante proyecto pero creo que pudo haber tenido mejores respuestas a las preguntas. O access a números ', 5.67, 13, 3, 306),
+(255, '', 6.93, 10, 5, 307),
+(256, 'Me gusta el esclamiento de pagos', 8.33, 9, 5, 308),
+(257, '', 7.16, 13, 5, 309),
+(258, '', 7.86, 11, 5, 310),
+(259, '', 7.86, 8, 5, 311),
+(260, '', 6.18, 10, 7, 312),
+(261, '', 7.11, 13, 7, 313),
+(262, 'Lindo por la ecología ', 7.35, 9, 7, 314),
+(263, '', 7.11, 8, 7, 315),
+(264, '', 7.58, 11, 7, 316),
+(265, '', 8.09, 10, 2, 317),
+(266, '', 8.09, 13, 2, 318),
+(267, '', 7.63, 8, 2, 319),
+(268, '', 7.74, 11, 2, 320),
+(269, 'Ambicioso proyecto ', 7.86, 9, 2, 321),
+(270, '', 7.53, 10, 9, 322),
+(271, '', 8.00, 13, 9, 323),
+(272, '', 8.00, 8, 9, 324),
+(273, '', 8.00, 11, 9, 325),
+(274, 'Proyecto retador por la industria ', 7.29, 9, 9, 326),
+(275, '', 8.59, 10, 1, 327),
+(276, '3 opciones de fondeo', 7.89, 9, 1, 328),
+(277, '', 7.89, 8, 1, 329),
+(278, '', 7.66, 13, 1, 330),
+(280, '', 8.07, 8, 6, 332),
+(281, '', 6.90, 13, 6, 333),
+(282, '', 7.83, 10, 6, 334),
+(283, 'Productos identificados, compromiso', 7.83, 9, 6, 335),
+(284, '', 7.77, 11, 6, 336),
+(285, '', 8.70, 9, 3, 337),
+(286, '', 7.64, 10, 4, 338),
+(287, '', 8.57, 11, 4, 339),
+(288, '', 7.17, 13, 4, 340),
+(289, '', 8.11, 8, 4, 341),
+(290, '', 8.94, 10, 8, 342),
+(291, '', 8.94, 9, 8, 343),
+(292, '', 8.23, 13, 8, 344),
+(293, '', 7.88, 11, 8, 345),
+(294, '', 7.30, 8, 8, 346),
+(295, '', 6.82, 13, 10, 347),
+(296, '', 6.35, 8, 10, 348),
+(297, '', 6.82, 9, 10, 349),
+(298, '', 6.82, 10, 10, 350),
+(299, '', 7.29, 11, 10, 351),
+(300, '', 6.94, 9, 4, 352),
+(301, '', 6.14, 7, 3, 353),
+(302, '', 7.40, 7, 5, 354),
+(303, '', 5.25, 7, 7, 355),
+(304, '', 7.63, 7, 2, 356),
+(307, '', 6.20, 7, 6, 359),
+(308, '', 6.24, 7, 4, 360),
+(309, '', 8.23, 7, 8, 361),
+(310, '', 6.12, 7, 10, 362),
+(312, '', 6.59, 7, 9, 364);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `backup_nota_criterio_calificacion`
+--
+
+DROP TABLE IF EXISTS `backup_nota_criterio_calificacion`;
+CREATE TABLE IF NOT EXISTS `backup_nota_criterio_calificacion` (
+  `ID_NOTA_CRITERIO_CALIFICACION` int NOT NULL DEFAULT '0',
+  `ID_NOTA_CRITERIO` int NOT NULL,
+  `ID_CALIFICACION` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `backup_nota_criterio_calificacion`
+--
+
+INSERT INTO `backup_nota_criterio_calificacion` (`ID_NOTA_CRITERIO_CALIFICACION`, `ID_NOTA_CRITERIO`, `ID_CALIFICACION`) VALUES
+(847, 847, 275),
+(848, 848, 275),
+(849, 849, 275),
+(850, 850, 275),
+(851, 851, 275),
+(852, 852, 275),
+(853, 853, 275),
+(854, 854, 276),
+(855, 855, 276),
+(856, 856, 276),
+(857, 857, 276),
+(858, 858, 276),
+(859, 859, 276),
+(860, 860, 276),
+(861, 861, 277),
+(862, 862, 277),
+(863, 863, 277),
+(864, 864, 277),
+(865, 865, 277),
+(866, 866, 277),
+(867, 867, 277),
+(868, 868, 278),
+(869, 869, 278),
+(870, 870, 278),
+(871, 871, 278),
+(872, 872, 278),
+(873, 873, 278),
+(874, 874, 278),
+(875, 875, 279),
+(876, 876, 279),
+(877, 877, 279),
+(878, 878, 279),
+(879, 879, 279),
+(880, 880, 279),
+(881, 881, 279),
+(882, 882, 280),
+(883, 883, 280),
+(884, 884, 280),
+(885, 885, 280),
+(886, 886, 280),
+(887, 887, 280),
+(888, 888, 280),
+(889, 889, 281),
+(890, 890, 281),
+(891, 891, 281),
+(892, 892, 281),
+(893, 893, 281),
+(894, 894, 281),
+(895, 895, 281),
+(896, 896, 282),
+(897, 897, 282),
+(898, 898, 282),
+(899, 899, 282),
+(900, 900, 282),
+(901, 901, 282),
+(902, 902, 282),
+(903, 903, 283),
+(904, 904, 283),
+(905, 905, 283),
+(906, 906, 283),
+(907, 907, 283),
+(908, 908, 283),
+(909, 909, 283),
+(910, 910, 284),
+(911, 911, 284),
+(912, 912, 284),
+(913, 913, 284),
+(914, 914, 284),
+(915, 915, 284),
+(916, 916, 284),
+(971, 971, 303),
+(972, 972, 303),
+(973, 973, 303),
+(974, 974, 304),
+(975, 975, 304),
+(976, 976, 304),
+(977, 977, 305),
+(978, 978, 305),
+(979, 979, 305),
+(980, 980, 306),
+(981, 981, 306),
+(982, 982, 306),
+(983, 983, 307),
+(984, 984, 307),
+(985, 985, 307),
+(986, 986, 308),
+(987, 987, 308),
+(988, 988, 308),
+(989, 989, 309),
+(990, 990, 309),
+(991, 991, 309),
+(992, 992, 310),
+(993, 993, 310),
+(994, 994, 310),
+(995, 995, 311),
+(996, 996, 311),
+(997, 997, 311),
+(998, 998, 312),
+(999, 999, 312),
+(1000, 1000, 312),
+(1001, 1001, 313),
+(1002, 1002, 313),
+(1003, 1003, 313),
+(1004, 1004, 314),
+(1005, 1005, 314),
+(1006, 1006, 314),
+(1007, 1007, 315),
+(1008, 1008, 315),
+(1009, 1009, 315),
+(1010, 1010, 316),
+(1011, 1011, 316),
+(1012, 1012, 316),
+(1013, 1013, 317),
+(1014, 1014, 317),
+(1015, 1015, 317),
+(1016, 1016, 318),
+(1017, 1017, 318),
+(1018, 1018, 318),
+(1019, 1019, 319),
+(1020, 1020, 319),
+(1021, 1021, 319),
+(1022, 1022, 320),
+(1023, 1023, 320),
+(1024, 1024, 320),
+(1025, 1025, 321),
+(1026, 1026, 321),
+(1027, 1027, 321),
+(1028, 1028, 322),
+(1029, 1029, 322),
+(1030, 1030, 322),
+(1031, 1031, 323),
+(1032, 1032, 323),
+(1033, 1033, 323),
+(1034, 1034, 324),
+(1035, 1035, 324),
+(1036, 1036, 324),
+(1037, 1037, 325),
+(1038, 1038, 325),
+(1039, 1039, 325),
+(1040, 1040, 326),
+(1041, 1041, 326),
+(1042, 1042, 326),
+(1043, 1043, 327),
+(1044, 1044, 327),
+(1045, 1045, 327),
+(1046, 1046, 328),
+(1047, 1047, 328),
+(1048, 1048, 328),
+(1049, 1049, 329),
+(1050, 1050, 329),
+(1051, 1051, 329),
+(1052, 1052, 330),
+(1053, 1053, 330),
+(1054, 1054, 330),
+(1058, 1058, 332),
+(1059, 1059, 332),
+(1060, 1060, 332),
+(1061, 1061, 333),
+(1062, 1062, 333),
+(1063, 1063, 333),
+(1064, 1064, 334),
+(1065, 1065, 334),
+(1066, 1066, 334),
+(1067, 1067, 335),
+(1068, 1068, 335),
+(1069, 1069, 335),
+(1070, 1070, 336),
+(1071, 1071, 336),
+(1072, 1072, 336),
+(1073, 1073, 337),
+(1074, 1074, 337),
+(1075, 1075, 337),
+(1076, 1076, 338),
+(1077, 1077, 338),
+(1078, 1078, 338),
+(1079, 1079, 339),
+(1080, 1080, 339),
+(1081, 1081, 339),
+(1082, 1082, 340),
+(1083, 1083, 340),
+(1084, 1084, 340),
+(1085, 1085, 341),
+(1086, 1086, 341),
+(1087, 1087, 341),
+(1088, 1088, 342),
+(1089, 1089, 342),
+(1090, 1090, 342),
+(1091, 1091, 343),
+(1092, 1092, 343),
+(1093, 1093, 343),
+(1094, 1094, 344),
+(1095, 1095, 344),
+(1096, 1096, 344),
+(1097, 1097, 345),
+(1098, 1098, 345),
+(1099, 1099, 345),
+(1100, 1100, 346),
+(1101, 1101, 346),
+(1102, 1102, 346),
+(1103, 1103, 347),
+(1104, 1104, 347),
+(1105, 1105, 347),
+(1106, 1106, 348),
+(1107, 1107, 348),
+(1108, 1108, 348),
+(1109, 1109, 349),
+(1110, 1110, 349),
+(1111, 1111, 349),
+(1112, 1112, 350),
+(1113, 1113, 350),
+(1114, 1114, 350),
+(1115, 1115, 351),
+(1116, 1116, 351),
+(1117, 1117, 351),
+(1118, 1118, 352),
+(1119, 1119, 352),
+(1120, 1120, 352),
+(1121, 1121, 353),
+(1122, 1122, 353),
+(1123, 1123, 353),
+(1124, 1124, 354),
+(1125, 1125, 354),
+(1126, 1126, 354),
+(1127, 1127, 355),
+(1128, 1128, 355),
+(1129, 1129, 355),
+(1130, 1130, 356),
+(1131, 1131, 356),
+(1132, 1132, 356),
+(1139, 1139, 359),
+(1140, 1140, 359),
+(1141, 1141, 359),
+(1142, 1142, 360),
+(1143, 1143, 360),
+(1144, 1144, 360),
+(1145, 1145, 361),
+(1146, 1146, 361),
+(1147, 1147, 361),
+(1148, 1148, 362),
+(1149, 1149, 362),
+(1150, 1150, 362),
+(1154, 1154, 364),
+(1155, 1155, 364),
+(1156, 1156, 364);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `calificacion`
+--
+
+DROP TABLE IF EXISTS `calificacion`;
+CREATE TABLE IF NOT EXISTS `calificacion` (
+  `ID_CALIFICACION` int NOT NULL AUTO_INCREMENT,
+  `CALIFICACION` double(5,2) NOT NULL,
+  `ID_ACTIVIDAD` int NOT NULL,
+  `ID_PROYECTO` int NOT NULL,
+  PRIMARY KEY (`ID_CALIFICACION`),
+  KEY `ID_PROYECTO` (`ID_PROYECTO`),
+  KEY `ID_ACTIVIDAD` (`ID_ACTIVIDAD`)
+) ENGINE=InnoDB AUTO_INCREMENT=413 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `calificacion`
+--
+
+INSERT INTO `calificacion` (`ID_CALIFICACION`, `CALIFICACION`, `ID_ACTIVIDAD`, `ID_PROYECTO`) VALUES
+(380, 7.64, 12, 2),
+(381, 7.61, 12, 3),
+(382, 7.48, 12, 4),
+(383, 7.45, 12, 5),
+(384, 7.34, 12, 6),
+(385, 7.25, 12, 7),
+(386, 7.18, 12, 8),
+(387, 7.14, 12, 9),
+(388, 7.11, 12, 10),
+(389, 6.82, 12, 11),
+(390, 6.29, 12, 12),
+(412, 7.93, 12, 1);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `criterio`
+--
+
+DROP TABLE IF EXISTS `criterio`;
+CREATE TABLE IF NOT EXISTS `criterio` (
+  `ID_CRITERIO` int NOT NULL AUTO_INCREMENT,
+  `CRITERIO` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+  `PORCENTAJE` double(5,2) NOT NULL,
+  `DESCRIPCION` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
+  `ID_ACTIVIDAD` int NOT NULL,
+  PRIMARY KEY (`ID_CRITERIO`),
+  KEY `ID_ACTIVIDAD` (`ID_ACTIVIDAD`)
+) ENGINE=InnoDB AUTO_INCREMENT=47 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `criterio`
+--
+
+INSERT INTO `criterio` (`ID_CRITERIO`, `CRITERIO`, `PORCENTAJE`, `DESCRIPCION`, `ID_ACTIVIDAD`) VALUES
+(30, 'Impacto Económico', 16.66, 'Impacto Económico', 12),
+(31, 'Impacto Social', 16.66, 'Impacto Social', 12),
+(32, 'Impacto Ambiental', 16.66, 'Impacto Ambiental', 12),
+(33, 'Sostenibilidad Financiera', 16.66, 'Sostenibilidad del Proyecto', 12),
+(34, 'Crecimiento Potencial', 16.66, 'Crecimiento Potencial', 12),
+(35, 'Innovación', 16.66, 'Innovación', 12),
+(36, 'Presentación general del Proyecto', 14.30, 'Presentación general del Proyecto', 12),
+(37, 'CLARIDAD DE LA PRESENTACIÓN', 33.33, 'claridad y efectividad en la comunicación de la idea de negocio.', 10),
+(38, 'RESPUESTA A PREGUNTAS', 33.33, 'capacidad para responder de manera efectiva y convincente a las preguntas del jurado', 10),
+(39, 'ESTRATEGIA DE MERCADO Y COMPETITIVIDAD', 33.33, 'comprensión del mercado objetivo  y ventajas competitivas del proyecto', 10),
+(40, 'Impacto Económico', 14.30, 'Evaluación del impacto económico del proyecto', 10),
+(41, 'Impacto Social', 14.30, 'Evaluación del impacto social del proyecto', 10),
+(42, 'Impacto Ambiental', 14.30, 'Evaluación del impacto ambiental del proyecto', 10),
+(43, 'Sostenibilidad Financiera', 14.30, 'Evaluación de la sostenibilidad del proyecto', 10),
+(44, 'Crecimiento Potencial', 14.30, 'Evaluación del potencial de crecimiento', 10),
+(45, 'Innovación', 14.30, 'Evaluación del nivel de innovación', 10),
+(46, 'Promedio del Proyecto', 14.10, 'Evaluación general del proyecto', 10);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `nfinal`
+--
+
+DROP TABLE IF EXISTS `nfinal`;
+CREATE TABLE IF NOT EXISTS `nfinal` (
+  `ID_NFINAL` int NOT NULL AUTO_INCREMENT,
+  `NOTA_FINAL` double(4,2) NOT NULL,
+  `ID_PROYECTO` int NOT NULL,
+  `ID_ACTIVIDAD` int NOT NULL,
+  PRIMARY KEY (`ID_NFINAL`),
+  KEY `ID_PROYECTO` (`ID_PROYECTO`),
+  KEY `ID_ACTIVIDAD` (`ID_ACTIVIDAD`)
+) ENGINE=InnoDB AUTO_INCREMENT=109 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `nfinal`
+--
+
+INSERT INTO `nfinal` (`ID_NFINAL`, `NOTA_FINAL`, `ID_PROYECTO`, `ID_ACTIVIDAD`) VALUES
+(104, 2.20, 6, 10),
+(105, 2.17, 7, 10),
+(106, 2.15, 8, 10),
+(107, 2.14, 9, 10),
+(108, 2.05, 11, 10);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `notas`
+--
+
+DROP TABLE IF EXISTS `notas`;
+CREATE TABLE IF NOT EXISTS `notas` (
+  `ID_NOTAS` int NOT NULL AUTO_INCREMENT,
+  `COMENTARIOS` varchar(200) COLLATE utf8mb4_general_ci NOT NULL,
+  `CALIFICACION` double(5,2) NOT NULL,
+  `ID_USUARIO` int NOT NULL,
+  `ID_PROYECTO` int NOT NULL,
+  `ID_CALIFICACION` int NOT NULL,
+  PRIMARY KEY (`ID_NOTAS`),
+  KEY `ID_USUARIO` (`ID_USUARIO`),
+  KEY `ID_PROYECTO` (`ID_PROYECTO`),
+  KEY `ID_CALIFICACION` (`ID_CALIFICACION`)
+) ENGINE=InnoDB AUTO_INCREMENT=339 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `notas_nfinal`
+--
+
+DROP TABLE IF EXISTS `notas_nfinal`;
+CREATE TABLE IF NOT EXISTS `notas_nfinal` (
+  `ID_NOTAS_NFINAL` int NOT NULL AUTO_INCREMENT,
+  `ID_NOTA` int NOT NULL,
+  `ID_NFINAL` int NOT NULL,
+  PRIMARY KEY (`ID_NOTAS_NFINAL`),
+  KEY `ID_NOTA` (`ID_NOTA`),
+  KEY `ID_NFINAL` (`ID_NFINAL`)
+) ENGINE=InnoDB AUTO_INCREMENT=339 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `nota_criterio`
+--
+
+DROP TABLE IF EXISTS `nota_criterio`;
+CREATE TABLE IF NOT EXISTS `nota_criterio` (
+  `ID_NOTACRITERIO` int NOT NULL AUTO_INCREMENT,
+  `NOTA` double(4,2) NOT NULL,
+  `ID_CRITERIO` int NOT NULL,
+  `ID_USUARIO` int NOT NULL,
+  PRIMARY KEY (`ID_NOTACRITERIO`),
+  KEY `ID_CRITERIO` (`ID_CRITERIO`),
+  KEY `ID_USUARIO` (`ID_USUARIO`)
+) ENGINE=InnoDB AUTO_INCREMENT=1372 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `nota_criterio`
+--
+
+INSERT INTO `nota_criterio` (`ID_NOTACRITERIO`, `NOTA`, `ID_CRITERIO`, `ID_USUARIO`) VALUES
+(1230, 7.64, 36, 15),
+(1231, 7.61, 36, 15),
+(1232, 7.48, 36, 15),
+(1233, 7.45, 36, 15),
+(1234, 7.34, 36, 15),
+(1235, 7.25, 36, 15),
+(1236, 7.18, 36, 15),
+(1237, 7.14, 36, 15),
+(1238, 7.11, 36, 15),
+(1239, 6.82, 36, 15),
+(1240, 6.29, 36, 15),
+(1371, 7.93, 36, 15);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `nota_criterio_calificacion`
+--
+
+DROP TABLE IF EXISTS `nota_criterio_calificacion`;
+CREATE TABLE IF NOT EXISTS `nota_criterio_calificacion` (
+  `ID_NOTA_CRITERIO_CALIFICACION` int NOT NULL AUTO_INCREMENT,
+  `ID_NOTA_CRITERIO` int NOT NULL,
+  `ID_CALIFICACION` int NOT NULL,
+  PRIMARY KEY (`ID_NOTA_CRITERIO_CALIFICACION`),
+  KEY `ID_NOTA_CRITERIO` (`ID_NOTA_CRITERIO`),
+  KEY `ID_CALIFICACION` (`ID_CALIFICACION`)
+) ENGINE=InnoDB AUTO_INCREMENT=1364 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `nota_criterio_calificacion`
+--
+
+INSERT INTO `nota_criterio_calificacion` (`ID_NOTA_CRITERIO_CALIFICACION`, `ID_NOTA_CRITERIO`, `ID_CALIFICACION`) VALUES
+(1226, 1230, 380),
+(1227, 1231, 381),
+(1228, 1232, 382),
+(1229, 1233, 383),
+(1230, 1234, 384),
+(1231, 1235, 385),
+(1232, 1236, 386),
+(1233, 1237, 387),
+(1234, 1238, 388),
+(1235, 1239, 389),
+(1236, 1240, 390),
+(1363, 1371, 412);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `permisos`
+--
+
+DROP TABLE IF EXISTS `permisos`;
+CREATE TABLE IF NOT EXISTS `permisos` (
+  `ID_PERMISO` int NOT NULL AUTO_INCREMENT,
+  `PERMISO` varchar(2) COLLATE utf8mb4_general_ci NOT NULL,
+  `DESCRIPCION` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+  PRIMARY KEY (`ID_PERMISO`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `permisos`
+--
 
 INSERT INTO `permisos` (`ID_PERMISO`, `PERMISO`, `DESCRIPCION`) VALUES
-(1, 'JU', ''),
-(2, 'AD', '')
+(1, 'Ju', 'Modificaciones por jurado'),
+(2, 'Ad', 'Modificaciones por administrador');
 
-CREATE TABLE ACTIVIDAD (
-    ID_ACTIVIDAD INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    NOM_ACTIVIDAD VARCHAR(30) NOT NULL,
-    PORCENTAJE DOUBLE(5,2) NOT NULL,
-    DESCRIPCION VARCHAR(60) NOT NULL,
-    ID_PERMISO INT NOT NULL,
-    FOREIGN KEY (ID_PERMISO) REFERENCES PERMISOS(ID_PERMISO)
-);
+-- --------------------------------------------------------
 
-CREATE TABLE PROYECTO (
-    ID_PROYECTO INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    PROYECTO VARCHAR(150) NOT NULL,
-    DESCRIPCION VARCHAR(200) NOT NULL
-);
+--
+-- Estructura de tabla para la tabla `premio`
+--
 
-CREATE TABLE CALIFICACION (
-    ID_CALIFICACION INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    CALIFICACION DOUBLE(5,2) NOT NULL,
-    ID_ACTIVIDAD INT NOT NULL,
-    ID_PROYECTO INT NOT NULL,
-    FOREIGN KEY (ID_PROYECTO) REFERENCES PROYECTO(ID_PROYECTO),
-    FOREIGN KEY (ID_ACTIVIDAD) REFERENCES ACTIVIDAD(ID_ACTIVIDAD)
-);
+DROP TABLE IF EXISTS `premio`;
+CREATE TABLE IF NOT EXISTS `premio` (
+  `ID_PREMIO` int NOT NULL AUTO_INCREMENT,
+  `PREMIO` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+  `DESCRIPCION` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
+  PRIMARY KEY (`ID_PREMIO`)
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-CREATE TABLE NOTAS (
-    ID_NOTAS INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    COMENTARIOS VARCHAR(200) NOT NULL,
-    CALIFICACION DOUBLE(5,2) NOT NULL,
-    ID_USUARIO INT NOT NULL,
-    ID_PROYECTO INT NOT NULL,
-    ID_CALIFICACION INT NOT NULL,
-    FOREIGN KEY (ID_USUARIO) REFERENCES USUARIO(ID_USUARIO),
-    FOREIGN KEY (ID_PROYECTO) REFERENCES PROYECTO(ID_PROYECTO),
-    FOREIGN KEY (ID_CALIFICACION) REFERENCES CALIFICACION(ID_CALIFICACION)
-);
+--
+-- Volcado de datos para la tabla `premio`
+--
 
-CREATE TABLE CRITERIO (
-    ID_CRITERIO INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    CRITERIO VARCHAR(50) NOT NULL,
-    PORCENTAJE DOUBLE(5,2) NOT NULL,
-    DESCRIPCION VARCHAR(100) NOT NULL,
-    ID_ACTIVIDAD INT NOT NULL,
-    FOREIGN KEY (ID_ACTIVIDAD) REFERENCES ACTIVIDAD(ID_ACTIVIDAD)
-);
+INSERT INTO `premio` (`ID_PREMIO`, `PREMIO`, `DESCRIPCION`) VALUES
+(2, '$30,000.00 + Premio 2', 'Primer Lugar'),
+(3, '$20,000.00', 'Segundo Lugar'),
+(4, '$10,000.00', 'Tercer Lugar'),
+(5, '$5,000.00', 'Emprendimiento Favorito'),
+(6, '4 Sesiones de mentoring', 'Inbox'),
+(7, 'Asesoria de Marketing Digital ', 'LISTASO'),
+(8, 'Certificación en Habilidades gerenciales ', 'ADEN'),
+(9, 'Foro Centroamericano de Inversión - Costa Rica', 'FGK'),
+(10, 'Applaudo ', 'Applaudo '),
+(11, '$5,000.00', 'Inversor Estrella'),
+(12, 'Geo_4K', '4K');
 
-CREATE TABLE NOTA_CRITERIO (
-    ID_NOTACRITERIO INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    NOTA DOUBLE(4,2) NOT NULL,
-    ID_CRITERIO INT NOT NULL,
-    ID_USUARIO INT NOT NULL,
-    FOREIGN KEY (ID_CRITERIO) REFERENCES CRITERIO(ID_CRITERIO),
-    FOREIGN KEY (ID_USUARIO) REFERENCES USUARIO(ID_USUARIO)
-);
+-- --------------------------------------------------------
 
-CREATE TABLE NOTA_CRITERIO_CALIFICACION (
-    ID_NOTA_CRITERIO_CALIFICACION INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    ID_NOTA_CRITERIO INT NOT NULL,
-    ID_CALIFICACION INT NOT NULL,
-    FOREIGN KEY (ID_NOTA_CRITERIO) REFERENCES NOTA_CRITERIO(ID_NOTACRITERIO),
-    FOREIGN KEY (ID_CALIFICACION) REFERENCES CALIFICACION(ID_CALIFICACION)
-);
+--
+-- Estructura de tabla para la tabla `premio_nfinal`
+--
 
-CREATE TABLE NFINAL (
-    ID_NFINAL INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    NOTA_FINAL DOUBLE(4,2) NOT NULL,
-    ID_PROYECTO INT NOT NULL,
-    ID_ACTIVIDAD INT NOT NULL,
-    FOREIGN KEY (ID_PROYECTO) REFERENCES PROYECTO(ID_PROYECTO),
-    FOREIGN KEY (ID_ACTIVIDAD) REFERENCES ACTIVIDAD(ID_ACTIVIDAD)
-);
+DROP TABLE IF EXISTS `premio_nfinal`;
+CREATE TABLE IF NOT EXISTS `premio_nfinal` (
+  `ID_PREMIO_NFINAL` int NOT NULL AUTO_INCREMENT,
+  `ID_PREMIO` int NOT NULL,
+  `ID_NFINAL` int NOT NULL,
+  PRIMARY KEY (`ID_PREMIO_NFINAL`),
+  KEY `ID_PREMIO` (`ID_PREMIO`),
+  KEY `ID_NFINAL` (`ID_NFINAL`)
+) ENGINE=InnoDB AUTO_INCREMENT=288 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-CREATE TABLE NOTAS_NFINAL (
-    ID_NOTAS_NFINAL INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    ID_NOTA INT NOT NULL,
-    ID_NFINAL INT NOT NULL,
-    FOREIGN KEY (ID_NOTA) REFERENCES NOTAS(ID_NOTAS),
-    FOREIGN KEY (ID_NFINAL) REFERENCES NFINAL(ID_NFINAL)
-);
+-- --------------------------------------------------------
 
-CREATE TABLE PREMIO (
-    ID_PREMIO INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    PREMIO VARCHAR(50) NOT NULL,
-    DESCRIPCION VARCHAR(100) NOT NULL
-);
+--
+-- Estructura de tabla para la tabla `proyecto`
+--
 
-CREATE TABLE PREMIO_NFINAL (
-    ID_PREMIO_NFINAL INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-    ID_PREMIO INT NOT NULL,
-    ID_NFINAL INT NOT NULL,
-    FOREIGN KEY (ID_PREMIO) REFERENCES PREMIO(ID_PREMIO),
-    FOREIGN KEY (ID_NFINAL) REFERENCES NFINAL(ID_NFINAL)
-);
+DROP TABLE IF EXISTS `proyecto`;
+CREATE TABLE IF NOT EXISTS `proyecto` (
+  `ID_PROYECTO` int NOT NULL AUTO_INCREMENT,
+  `PROYECTO` varchar(150) COLLATE utf8mb4_general_ci NOT NULL,
+  `DESCRIPCION` varchar(500) COLLATE utf8mb4_general_ci NOT NULL,
+  PRIMARY KEY (`ID_PROYECTO`)
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO ROL (ROL) VALUES 
-('ADMINISTRADOR'),
-('EVALUADOR');
-(JURADOPRINCIPAL);
+--
+-- Volcado de datos para la tabla `proyecto`
+--
 
-INSERT INTO USUARIO (NOMBRE, APELLIDO, CONTRASENA, TEMPORAL, ID_ROL) VALUES
-('Alexis', 'Cisneros', 'proyecto_','1','1'),
-('Angie', 'Valencia', 'proyecto_','1','2'),
-('Admin', 'Admin', 'proyecto_','1','1');
+INSERT INTO `proyecto` (`ID_PROYECTO`, `PROYECTO`, `DESCRIPCION`) VALUES
+(1, 'LULA MENA', 'Proyecto de artesanías y productos culturales'),
+(2, 'CASA ARTESANAL', 'Espacio dedicado a la producción y venta de artesanías locales'),
+(3, 'FRUTO INFINITO', 'Proyecto agrícola o de productos derivados de frutas'),
+(4, 'Fundación Innovación y Pensamiento Disruptivo', 'Proyecto tecnológico o de soluciones digitales'),
+(5, 'OHASIS', 'Proyecto de bienestar, turismo o espacios recreativos'),
+(6, 'MECHANICA3D', 'Kit de conversión eléctrica para bicicletas, promoviendo la electromovilidad y un futuro verde.'),
+(7, 'ASOCIACIÓN CULTURAL AZORO', 'Organización dedicada a la promoción cultural y artística'),
+(8, 'KUSKAKIDS', 'Proyecto dirigido a niños y educación infantil'),
+(9, 'BOGANAIS', 'Proyecto de productos naturales, botánicos o ecológicos'),
+(10, 'ITERO', 'Proyecto tecnológico o de innovación'),
+(11, 'CAPROS', 'Proyecto de soluciones o productos innovadores'),
+(12, 'MOSKEM', 'Proyecto de emprendimiento o desarrollo comercial');
 
+-- --------------------------------------------------------
 
--- INSERTS PARA CRITERIOS DEL PITCH 70%
-INSERT INTO CRITERIO (CRITERIO, PORCENTAJE, DESCRIPCION, ID_ACTIVIDAD) VALUES
-('Impacto Económico', 14.30, 'Evaluación del impacto económico del proyecto', 10),
-('Impacto Social', 14.30, 'Evaluación del impacto social del proyecto', 10),
-('Impacto Ambiental', 14.30, 'Evaluación del impacto ambiental del proyecto', 10),
-('Sostenibilidad del Proyecto', 14.30, 'Evaluación de la sostenibilidad del proyecto', 10),
-('Crecimiento Potencial', 14.30, 'Evaluación del potencial de crecimiento', 10),
-('Innovación', 14.30, 'Evaluación del nivel de innovación', 10),
-('Promedio del Proyecto', 14.10, 'Evaluación general del proyecto', 10);
+--
+-- Estructura de tabla para la tabla `rol`
+--
 
--- OPCIONAL: Si necesitas modificar las constraints para DELETE CASCADE, hazlo por separado:
-/*
--- Eliminar las constraints existentes (solo si es necesario)
-ALTER TABLE NOTAS DROP FOREIGN KEY NOTAS_ibfk_3;
-ALTER TABLE NOTA_CRITERIO_CALIFICACION DROP FOREIGN KEY NOTA_CRITERIO_CALIFICACION_ibfk_2;
+DROP TABLE IF EXISTS `rol`;
+CREATE TABLE IF NOT EXISTS `rol` (
+  `ID_ROL` int NOT NULL AUTO_INCREMENT,
+  `ROL` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+  PRIMARY KEY (`ID_ROL`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Crear las nuevas constraints con ON DELETE CASCADE
-ALTER TABLE NOTAS 
-ADD CONSTRAINT NOTAS_ibfk_3 
-FOREIGN KEY (ID_CALIFICACION) REFERENCES CALIFICACION(ID_CALIFICACION) 
-ON DELETE CASCADE;
+--
+-- Volcado de datos para la tabla `rol`
+--
 
-ALTER TABLE NOTA_CRITERIO_CALIFICACION 
-ADD CONSTRAINT NOTA_CRITERIO_CALIFICACION_ibfk_2 
-FOREIGN KEY (ID_CALIFICACION) REFERENCES CALIFICACION(ID_CALIFICACION) 
-ON DELETE CASCADE;
+INSERT INTO `rol` (`ID_ROL`, `ROL`) VALUES
+(1, 'ADMINISTRADOR'),
+(2, 'EVALUADOR'),
+(3, 'JURADOPRINCIPAL');
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `usuario`
+--
+
+DROP TABLE IF EXISTS `usuario`;
+CREATE TABLE IF NOT EXISTS `usuario` (
+  `ID_USUARIO` int NOT NULL AUTO_INCREMENT,
+  `NOMBRE` varchar(25) COLLATE utf8mb4_general_ci NOT NULL,
+  `APELLIDO` varchar(30) COLLATE utf8mb4_general_ci NOT NULL,
+  `CONTRASENA` varchar(9) COLLATE utf8mb4_general_ci NOT NULL,
+  `TEMPORAL` tinyint NOT NULL,
+  `ID_ROL` int NOT NULL,
+  `ESTADO` tinyint DEFAULT '1',
+  PRIMARY KEY (`ID_USUARIO`),
+  KEY `ID_ROL` (`ID_ROL`)
+) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `usuario`
+--
+
+INSERT INTO `usuario` (`ID_USUARIO`, `NOMBRE`, `APELLIDO`, `CONTRASENA`, `TEMPORAL`, `ID_ROL`, `ESTADO`) VALUES
+(6, 'Saul', 'Jurado', 'proyecto_', 0, 1, 1),
+(7, 'Fernando', 'Kriete', 'proyecto_', 0, 2, 1),
+(8, 'Jose', 'Giammatei', 'proyecto_', 0, 2, 0),
+(9, 'Alexandra', 'Araujo', 'proyecto_', 0, 2, 0),
+(10, 'Francisco', 'Perez', 'proyecto_', 0, 2, 1),
+(11, 'Juana', 'Jule', 'proyecto_', 0, 3, 1),
+(12, 'Admin', 'Sistema', 'proyecto_', 0, 1, 1),
+(13, 'Jose', 'Montalvo', 'proyecto_', 0, 2, 1),
+(14, 'Roberto', 'Quezada', 'proyecto_', 0, 1, 1),
+(15, 'Geo', 'Albanes', 'proyecto_', 0, 1, 1);
+
+--
+-- Restricciones para tablas volcadas
+--
+
+--
+-- Filtros para la tabla `actividad`
+--
+ALTER TABLE `actividad`
+  ADD CONSTRAINT `ACTIVIDAD_ibfk_1` FOREIGN KEY (`ID_PERMISO`) REFERENCES `permisos` (`ID_PERMISO`);
+
+--
+-- Filtros para la tabla `calificacion`
+--
+ALTER TABLE `calificacion`
+  ADD CONSTRAINT `CALIFICACION_ibfk_1` FOREIGN KEY (`ID_PROYECTO`) REFERENCES `proyecto` (`ID_PROYECTO`),
+  ADD CONSTRAINT `CALIFICACION_ibfk_2` FOREIGN KEY (`ID_ACTIVIDAD`) REFERENCES `actividad` (`ID_ACTIVIDAD`);
+
+--
+-- Filtros para la tabla `criterio`
+--
+ALTER TABLE `criterio`
+  ADD CONSTRAINT `CRITERIO_ibfk_1` FOREIGN KEY (`ID_ACTIVIDAD`) REFERENCES `actividad` (`ID_ACTIVIDAD`);
+
+--
+-- Filtros para la tabla `nfinal`
+--
+ALTER TABLE `nfinal`
+  ADD CONSTRAINT `NFINAL_ibfk_1` FOREIGN KEY (`ID_PROYECTO`) REFERENCES `proyecto` (`ID_PROYECTO`),
+  ADD CONSTRAINT `NFINAL_ibfk_2` FOREIGN KEY (`ID_ACTIVIDAD`) REFERENCES `actividad` (`ID_ACTIVIDAD`);
+
+--
+-- Filtros para la tabla `notas`
+--
+ALTER TABLE `notas`
+  ADD CONSTRAINT `NOTAS_ibfk_1` FOREIGN KEY (`ID_USUARIO`) REFERENCES `usuario` (`ID_USUARIO`),
+  ADD CONSTRAINT `NOTAS_ibfk_2` FOREIGN KEY (`ID_PROYECTO`) REFERENCES `proyecto` (`ID_PROYECTO`),
+  ADD CONSTRAINT `NOTAS_ibfk_3` FOREIGN KEY (`ID_CALIFICACION`) REFERENCES `calificacion` (`ID_CALIFICACION`) ON DELETE CASCADE;
+
+--
+-- Filtros para la tabla `notas_nfinal`
+--
+ALTER TABLE `notas_nfinal`
+  ADD CONSTRAINT `NOTAS_NFINAL_ibfk_1` FOREIGN KEY (`ID_NOTA`) REFERENCES `notas` (`ID_NOTAS`) ON DELETE CASCADE,
+  ADD CONSTRAINT `NOTAS_NFINAL_ibfk_2` FOREIGN KEY (`ID_NFINAL`) REFERENCES `nfinal` (`ID_NFINAL`) ON DELETE CASCADE;
+
+--
+-- Filtros para la tabla `nota_criterio`
+--
+ALTER TABLE `nota_criterio`
+  ADD CONSTRAINT `NOTA_CRITERIO_ibfk_1` FOREIGN KEY (`ID_CRITERIO`) REFERENCES `criterio` (`ID_CRITERIO`),
+  ADD CONSTRAINT `NOTA_CRITERIO_ibfk_2` FOREIGN KEY (`ID_USUARIO`) REFERENCES `usuario` (`ID_USUARIO`);
+
+--
+-- Filtros para la tabla `nota_criterio_calificacion`
+--
+ALTER TABLE `nota_criterio_calificacion`
+  ADD CONSTRAINT `NOTA_CRITERIO_CALIFICACION_ibfk_1` FOREIGN KEY (`ID_NOTA_CRITERIO`) REFERENCES `nota_criterio` (`ID_NOTACRITERIO`),
+  ADD CONSTRAINT `NOTA_CRITERIO_CALIFICACION_ibfk_2` FOREIGN KEY (`ID_CALIFICACION`) REFERENCES `calificacion` (`ID_CALIFICACION`) ON DELETE CASCADE;
+
+--
+-- Filtros para la tabla `premio_nfinal`
+--
+ALTER TABLE `premio_nfinal`
+  ADD CONSTRAINT `PREMIO_NFINAL_ibfk_1` FOREIGN KEY (`ID_PREMIO`) REFERENCES `premio` (`ID_PREMIO`),
+  ADD CONSTRAINT `PREMIO_NFINAL_ibfk_2` FOREIGN KEY (`ID_NFINAL`) REFERENCES `nfinal` (`ID_NFINAL`) ON DELETE CASCADE;
+
+--
+-- Filtros para la tabla `usuario`
+--
+ALTER TABLE `usuario`
+  ADD CONSTRAINT `USUARIO_ibfk_1` FOREIGN KEY (`ID_ROL`) REFERENCES `rol` (`ID_ROL`);
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;

@@ -15,18 +15,6 @@ try {
   // Crear la conexión PDO
   $pdo = new PDO($dsn, $username, $password);
   $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-  // Consulta SQL para obtener los proyectos y sus notas finales
-  $query = "
-SELECT p.ID_PROYECTO, p.PROYECTO AS proyecto, nf.NOTA_FINAL AS nota_final
-FROM PROYECTO p
-JOIN NFINAL nf ON p.ID_PROYECTO = nf.ID_PROYECTO
-";
-
-  // Ejecutar la consulta y obtener los resultados
-  $stmt = $pdo->prepare($query);
-  $stmt->execute();
-  $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
   die("Error de conexión: " . $e->getMessage());
 }
@@ -46,49 +34,170 @@ $row = $stmt->fetch(PDO::FETCH_ASSOC);
 $nombre_usuario = $row['NOMBRE'] . ' ' . $row['APELLIDO'];
 $rol = $row['ROL'];
 
-$query_actividades = "SELECT NOM_ACTIVIDAD, PORCENTAJE FROM ACTIVIDAD";
-
-// Ejecutar la consulta para obtener las actividades
+// Obtener actividades
+$query_actividades = "SELECT ID_ACTIVIDAD, NOM_ACTIVIDAD, PORCENTAJE FROM ACTIVIDAD ORDER BY ID_ACTIVIDAD";
 $stmt_actividades = $pdo->prepare($query_actividades);
 $stmt_actividades->execute();
 $actividades = $stmt_actividades->fetchAll(PDO::FETCH_ASSOC);
 
+// OBTENER EL NÚMERO DE JURADOS ACTIVOS
+$query_jurados_activos = "
+SELECT COUNT(*) as total_jurados_activos 
+FROM USUARIO 
+WHERE ID_ROL IN (2, 3) AND ESTADO = 1";
+$stmt_jurados_activos = $pdo->prepare($query_jurados_activos);
+$stmt_jurados_activos->execute();
+$result_jurados_activos = $stmt_jurados_activos->fetch(PDO::FETCH_ASSOC);
+$numero_jurados_activos = $result_jurados_activos['total_jurados_activos'];
 
+// Identificar actividad 30% y actividad 70% (pitch)
+$id_actividad_30 = null;
+$id_actividad_70 = null;
+foreach ($actividades as $actividad) {
+    if ((int)$actividad['PORCENTAJE'] === 30) {
+        $id_actividad_30 = $actividad['ID_ACTIVIDAD'];
+    }
+    if ((int)$actividad['PORCENTAJE'] === 70 && stripos($actividad['NOM_ACTIVIDAD'], 'pitch') !== false) {
+        $id_actividad_70 = $actividad['ID_ACTIVIDAD'];
+    }
+}
+// Si no se detectó por nombre, usar la actividad 70% única
+if ($id_actividad_70 === null) {
+    foreach ($actividades as $actividad) {
+        if ((int)$actividad['PORCENTAJE'] === 70) {
+            $id_actividad_70 = $actividad['ID_ACTIVIDAD'];
+            break;
+        }
+    }
+}
+
+// Obtener promedios por proyecto y actividad - SOLO DE JURADOS ACTIVOS
 $query_promedio = "
 SELECT 
-    p.PROYECTO AS nombre_proyecto,
-    a.NOM_ACTIVIDAD AS nombre_actividad,
-    AVG(c.CALIFICACION) AS promedio_nota,
     c.ID_PROYECTO,
-    c.ID_ACTIVIDAD
+    c.ID_ACTIVIDAD,
+    AVG(c.CALIFICACION) AS promedio_nota
 FROM 
     CALIFICACION c
-JOIN 
-    PROYECTO p ON c.ID_PROYECTO = p.ID_PROYECTO
-JOIN 
-    ACTIVIDAD a ON c.ID_ACTIVIDAD = a.ID_ACTIVIDAD
+JOIN NOTA_CRITERIO_CALIFICACION ncc ON c.ID_CALIFICACION = ncc.ID_CALIFICACION
+JOIN NOTA_CRITERIO nc ON ncc.ID_NOTA_CRITERIO = nc.ID_NOTACRITERIO
+JOIN USUARIO u ON u.ID_USUARIO = nc.ID_USUARIO
+WHERE u.ESTADO = 1  -- SOLO JURADOS ACTIVOS
 GROUP BY 
     c.ID_PROYECTO, c.ID_ACTIVIDAD
-ORDER BY 
-    p.PROYECTO, a.NOM_ACTIVIDAD;
 ";
-
-
-// Ejecutar la consulta
 $stmt = $pdo->prepare($query_promedio);
 $stmt->execute();
 $notas_promedio = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Crear una matriz de promedios de notas para que sea más fácil de usar en el HTML
+// Crear una matriz de promedios de notas
 $proyectos_promedios = [];
 foreach ($notas_promedio as $nota) {
     $proyectos_promedios[$nota['ID_PROYECTO']][$nota['ID_ACTIVIDAD']] = $nota['promedio_nota'];
 }
 
+// CONSULTA CORREGIDA: Obtener las notas individuales de los JURADOS ACTIVOS para el pitch
+$query_notas_pitch_jurados = "
+SELECT 
+    p.ID_PROYECTO,
+    p.PROYECTO,
+    c.CALIFICACION as nota_jurado,
+    u.ID_USUARIO,
+    CONCAT(u.NOMBRE, ' ', u.APELLIDO) as nombre_jurado
+FROM CALIFICACION c
+JOIN PROYECTO p ON p.ID_PROYECTO = c.ID_PROYECTO
+JOIN NOTA_CRITERIO_CALIFICACION ncc ON c.ID_CALIFICACION = ncc.ID_CALIFICACION
+JOIN NOTA_CRITERIO nc ON ncc.ID_NOTA_CRITERIO = nc.ID_NOTACRITERIO
+JOIN USUARIO u ON u.ID_USUARIO = nc.ID_USUARIO
+WHERE c.ID_ACTIVIDAD = :id_actividad_pitch
+AND u.ID_ROL IN (2, 3)  -- Solo jurados (ID_ROL 2 y 3)
+AND u.ESTADO = 1  -- SOLO JURADOS ACTIVOS
+GROUP BY p.ID_PROYECTO, u.ID_USUARIO, c.CALIFICACION
+ORDER BY p.ID_PROYECTO, u.ID_USUARIO
+";
 
+$stmt_pitch_jurados = $pdo->prepare($query_notas_pitch_jurados);
+$stmt_pitch_jurados->execute(['id_actividad_pitch' => $id_actividad_70]);
+$notas_pitch_jurados = $stmt_pitch_jurados->fetchAll(PDO::FETCH_ASSOC);
 
+// Organizar notas de jurados por proyecto
+$notas_jurados_por_proyecto = [];
+foreach ($notas_pitch_jurados as $nota) {
+    $id_proyecto = $nota['ID_PROYECTO'];
+    if (!isset($notas_jurados_por_proyecto[$id_proyecto])) {
+        $notas_jurados_por_proyecto[$id_proyecto] = [];
+    }
+    $notas_jurados_por_proyecto[$id_proyecto][] = $nota['nota_jurado'];
+}
+
+// Obtener lista única de proyectos
+$query_proyectos = "SELECT DISTINCT ID_PROYECTO, PROYECTO FROM PROYECTO ORDER BY ID_PROYECTO";
+$stmt_proyectos = $pdo->prepare($query_proyectos);
+$stmt_proyectos->execute();
+$todos_proyectos = $stmt_proyectos->fetchAll(PDO::FETCH_ASSOC);
+
+// Preparar arrays con valores calculados
+$proyectos_valores = [];
+$notas_finales_calculadas = [];
+
+foreach ($todos_proyectos as $proyecto) {
+    $id_proyecto = $proyecto['ID_PROYECTO'];
+
+    // CALCULAR PROMEDIO DEL PITCH CON JURADOS ACTIVOS
+    $valor_pitch = 0;
+    
+    if ($id_actividad_70 !== null && isset($notas_jurados_por_proyecto[$id_proyecto])) {
+        // 1. Sumar todas las notas de los jurados ACTIVOS para este proyecto
+        $suma_notas_jurados = array_sum($notas_jurados_por_proyecto[$id_proyecto]);
+        
+        // 2. Contar cuántos jurados ACTIVOS calificaron este proyecto
+        $numero_jurados_que_calificaron = count($notas_jurados_por_proyecto[$id_proyecto]);
+        
+        // 3. Calcular promedio dividiendo entre el número de jurados que calificaron
+        if ($numero_jurados_que_calificaron > 0) {
+            $promedio_jurados = $suma_notas_jurados / $numero_jurados_que_calificaron;
+        } else {
+            $promedio_jurados = 0;
+        }
+        
+        // 4. Multiplicar por 70% para obtener el valor del pitch
+        $valor_pitch = $promedio_jurados * 0.70;
+    }
+
+    // Calcular valor de la primera evaluación (30%)
+    $valor_30 = 0;
+    if ($id_actividad_30 !== null && isset($proyectos_promedios[$id_proyecto][$id_actividad_30])) {
+        $valor_30 = $proyectos_promedios[$id_proyecto][$id_actividad_30] * 0.30;
+    }
+
+    // Nota final = (promedio pitch * 0.70) + (promedio primera evaluacion * 0.30)
+    $nota_final = $valor_pitch + $valor_30;
+    $notas_finales_calculadas[$id_proyecto] = $nota_final;
+
+    // Para mostrar en la tabla
+    foreach ($actividades as $actividad) {
+        $id_actividad = $actividad['ID_ACTIVIDAD'];
+        $porcentaje = (int)$actividad['PORCENTAJE'];
+
+        if ($id_actividad == $id_actividad_70) {
+            // Mostrar el valor pitch calculado (suma_notas/numero_jurados_activos * 0.70)
+            $proyectos_valores[$id_proyecto][$id_actividad] = $valor_pitch;
+        } elseif ($id_actividad == $id_actividad_30) {
+            // Mostrar el valor 30%
+            $proyectos_valores[$id_proyecto][$id_actividad] = $valor_30;
+        } else {
+            // Otras actividades
+            if (isset($proyectos_promedios[$id_proyecto][$id_actividad])) {
+                $proyectos_valores[$id_proyecto][$id_actividad] = $proyectos_promedios[$id_proyecto][$id_actividad] * ($porcentaje / 100);
+            } else {
+                $proyectos_valores[$id_proyecto][$id_actividad] = null;
+            }
+        }
+    }
+}
+
+$results = $todos_proyectos;
 ?>
-
 
 <!DOCTYPE html>
 <html lang="en">
@@ -105,7 +214,6 @@ foreach ($notas_promedio as $nota) {
   <link href="assets/img/favicon.png" rel="icon">
   <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-
 
   <!-- Google Fonts -->
   <link href="https://fonts.gstatic.com" rel="preconnect">
@@ -136,7 +244,6 @@ foreach ($notas_promedio as $nota) {
       </a>
       <i class="bi bi-list toggle-sidebar-btn"></i>
     </div><!-- End Logo -->
-
 
     <nav class="header-nav ms-auto">
       <ul class="d-flex align-items-center">
@@ -216,7 +323,6 @@ foreach ($notas_promedio as $nota) {
           <i class="bi bi-gem"></i>
           <span>Fondos</span>
         </a>
-
       </li><!-- End Icons Nav -->
 
       <li class="nav-item"></li>
@@ -224,7 +330,7 @@ foreach ($notas_promedio as $nota) {
         <i class="bi bi-search"></i>
         <span>Actividades</span>
       </a>
-      </li><!-- End Activities Page Nav -->
+      </li><!-- End Activities Page Nav -->
 
       <li class="nav-item">
         <a class="nav-link" data-bs-target="#components-nav" data-bs-toggle="collapse" href="#">
@@ -246,7 +352,6 @@ foreach ($notas_promedio as $nota) {
               <i class="bi bi-circle"></i><span>Resultados Globales</span>
             </a>
           </li>
-
         </ul>
       </li><!-- End Components Nav -->
 
@@ -257,9 +362,7 @@ foreach ($notas_promedio as $nota) {
         <ul id="evaluacion-nav" class="nav-content collapse" data-bs-parent="#sidebar-nav">
           <!-- Aquí se cargarán dinámicamente las actividades -->
           <?php
-          include 'bdd/database.php'; // Asegúrate de tener una conexión PDO en este archivo
-
-          $sql = "SELECT ID_ACTIVIDAD, NOM_ACTIVIDAD, PORCENTAJE FROM ACTIVIDAD"; // Ajusta el nombre de la tabla y los campos según tu base de datos
+          $sql = "SELECT ID_ACTIVIDAD, NOM_ACTIVIDAD, PORCENTAJE FROM ACTIVIDAD";
           $stmt = $pdo->prepare($sql);
           $stmt->execute();
           $actividades = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -278,7 +381,6 @@ foreach ($notas_promedio as $nota) {
           ?>
         </ul>
       </li><!-- End Evaluación Nav -->
-
 
       <li class="nav-item">
         <a class="nav-link collapsed" href="users-profileadmin.php">
@@ -314,54 +416,59 @@ foreach ($notas_promedio as $nota) {
           <div class="card recent-sales overflow-auto">
             <div class="card-body">
               <h5 class="card-title">Resultados Finales <span>| Globales</span></h5>
+              <p class="text-muted">Cálculos basados en <?php echo $numero_jurados_activos; ?> jurados activos</p>
+              
               <table class="table table-bordered">
-  <thead>
-    <tr>
-      <td scope="col"><b>Proyecto</b></td>
+                <thead>
+                  <tr>
+                    <td scope="col"><b>Proyecto</b></td>
 
-      <!-- Mostrar actividades como encabezado de la tabla -->
-      <?php foreach ($actividades as $actividad): ?>
-        <td scope="col"><b><?= htmlspecialchars($actividad['NOM_ACTIVIDAD']); ?> (<?= htmlspecialchars($actividad['PORCENTAJE']); ?>%)</b></td>
-      <?php endforeach; ?>
+                    <!-- Mostrar actividades como encabezado de la tabla -->
+                    <?php foreach ($actividades as $actividad): ?>
+                      <td scope="col"><b><?= htmlspecialchars($actividad['NOM_ACTIVIDAD']); ?> (<?= htmlspecialchars($actividad['PORCENTAJE']); ?>%)</b></td>
+                    <?php endforeach; ?>
 
-      <th scope="col">Nota Final
-        <button class="btn-modify" data-order="asc" type="button" onclick="ordenarNotas()" style="margin-left: 5px;">
-          <i class="fas fa-sort-amount-down"></i>
-        </button>
-      </th>
-    </tr>
-  </thead>
-  <tbody>
-  <?php foreach ($results as $row): ?>
-    <tr>
-      <!-- Mostrar el nombre del proyecto -->
-      <td><?= htmlspecialchars($row['proyecto']); ?></td>
+                    <th scope="col">Nota Final
+                      <button class="btn-modify" data-order="asc" type="button" onclick="ordenarNotas()" style="margin-left: 5px;">
+                        <i class="fas fa-sort-amount-down"></i>
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($todos_proyectos as $row): ?>
+                  <tr>
+                    <td><?= htmlspecialchars($row['PROYECTO']); ?></td>
 
-      <!-- Mostrar el promedio de calificaciones para cada actividad de ese proyecto -->
-      <?php foreach ($actividades as $actividad): ?>
-        <td>
-          <?php
-          $id_proyecto = $row['ID_PROYECTO'];  // Asegúrate de que $row contenga ID_PROYECTO
-          $id_actividad = $actividad['ID_ACTIVIDAD'];  // Asegúrate de que $actividad contenga ID_ACTIVIDAD
+                    <?php foreach ($actividades as $actividad): ?>
+                      <td>
+                        <?php
+                        $id_proyecto = $row['ID_PROYECTO'];
+                        $id_actividad = $actividad['ID_ACTIVIDAD'];
 
-          if (isset($proyectos_promedios[$id_proyecto][$id_actividad])) {
-            // Mostrar el promedio de la calificación si existe
-            echo htmlspecialchars(number_format($proyectos_promedios[$id_proyecto][$id_actividad], 2));
-          } else {
-            // Si no hay calificación, mostrar 'N/A'
-            echo 'N/A';
-          }
-          ?>
-        </td>
-      <?php endforeach; ?>
+                        if (isset($proyectos_valores[$id_proyecto][$id_actividad]) && $proyectos_valores[$id_proyecto][$id_actividad] !== null) {
+                            echo htmlspecialchars(number_format($proyectos_valores[$id_proyecto][$id_actividad], 2));
+                        } else {
+                            echo 'N/A';
+                        }
+                        ?>
+                      </td>
+                    <?php endforeach; ?>
 
-      <!-- Nota final del proyecto -->
-      <td><?= htmlspecialchars(number_format($row['nota_final'], 2)); ?></td>
-    </tr>
-  <?php endforeach; ?>
-</tbody>
-
-</table>
+                    <td>
+                      <?php
+                      $id_proyecto = $row['ID_PROYECTO'];
+                      if (isset($notas_finales_calculadas[$id_proyecto])) {
+                          echo htmlspecialchars(number_format($notas_finales_calculadas[$id_proyecto], 2));
+                      } else {
+                          echo 'N/A';
+                      }
+                      ?>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+                </tbody>
+              </table>
 
             </div>
           </div>
@@ -410,9 +517,9 @@ foreach ($notas_promedio as $nota) {
 
       // Función de comparación para ordenar
       rows.sort(function(rowA, rowB) {
-        // Obtener las notas de las dos filas
-        var notaA = parseFloat(rowA.querySelector('td:nth-child(2)').innerText);
-        var notaB = parseFloat(rowB.querySelector('td:nth-child(2)').innerText);
+        // Obtener las notas de las dos filas (última columna - Nota Final)
+        var notaA = parseFloat(rowA.querySelector('td:last-child').innerText) || 0;
+        var notaB = parseFloat(rowB.querySelector('td:last-child').innerText) || 0;
 
         // Comparar según el orden actual
         if (order === 'asc') {
@@ -440,7 +547,6 @@ foreach ($notas_promedio as $nota) {
       }
     }
   </script>
-
 
 </body>
 

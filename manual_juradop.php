@@ -38,8 +38,16 @@
   <?php
 
   session_start();
+
+  // Verificar si se solicitó cerrar sesión
+  if (isset($_GET['logout']) && $_GET['logout'] == 'true') {
+      session_destroy();
+      header("Location: index.php");
+      exit();
+  }
+
   if (!isset($_SESSION['id_usuario'])) {
-    header("Location: ../ index.php");
+    header("Location: index.php");
     exit();
   }
 
@@ -114,7 +122,7 @@
             </li>
 
             <li>
-              <a class="dropdown-item d-flex align-items-center" href="index.php">
+              <a class="dropdown-item d-flex align-items-center" href="?logout=true">
                 <i class="bi bi-box-arrow-right"></i>
                 <span>Cerrar Sesion</span>
               </a>
@@ -252,16 +260,15 @@
                   <div class="card">
                     <div class="card-body">
                       <h5 class="card-title">Manual de Jurado</h5>
-
                       <!-- Previsualización del PDF -->
                       <div class="embed-responsive embed-responsive-16by9">
-                        <iframe src="manuales/manual_juradop.pdf" class="embed-responsive-item" width="100%"
+                        <iframe src="./manuales/manual_juradop.pdf?<?php echo time(); ?>" class="embed-responsive-item" width="100%"
                           height="500px"></iframe>
                       </div>
 
                       <!-- Botón de descarga -->
                       <div class="mt-3">
-                        <a href="manuales/manual_juradop.pdf" download class="btn btn-primary" target="_blank">
+                        <a href="./manuales/manual_juradop.pdf?<?php echo time(); ?>" download class="btn btn-primary" target="_blank">
                           <i class="bi bi-download"></i> Descargar PDF
                         </a>
                       </div>
@@ -283,13 +290,13 @@
   </footer><!-- End Footer -->
 
   <!-- Vendor JS Files -->
-  <script src="../assets/vendor/bootstrap/js/bootstrap.bundle.js"></script>
-  <script src="../assets/vendor/jquery/jquery.min.js"></script>
-  <script src="../assets/vendor/simple-datatables/simple-datatables.js"></script>
-  <script src="../assets/vendor/quill/quill.min.js"></script>
+  <script src="assets/vendor/bootstrap/js/bootstrap.bundle.js"></script>
+  <script src="assets/vendor/jquery/jquery.min.js"></script>
+  <script src="assets/vendor/simple-datatables/simple-datatables.js"></script>
+  <script src="assets/vendor/quill/quill.min.js"></script>
 
   <!-- Template Main JS File -->
-  <script src="../assets/js/main.js"></script>
+  <script src="assets/js/main.js"></script>
   <script>
   document.querySelector('.toggle-sidebar-btn').addEventListener('click', function() {
     document.getElementById('sidebar').classList.toggle('active');

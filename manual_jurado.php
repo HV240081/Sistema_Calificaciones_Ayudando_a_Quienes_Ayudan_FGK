@@ -239,16 +239,15 @@
                   <div class="card">
                     <div class="card-body">
                       <h5 class="card-title">Manual de Jurado</h5>
-
-                      <!-- Previsualización del PDF -->
+                                          <!-- Previsualización del PDF -->
                       <div class="embed-responsive embed-responsive-16by9">
-                        <iframe src="manuales/manual_jurado.pdf" class="embed-responsive-item" width="100%"
+                        <iframe src="./manuales/manual_jurado.pdf?<?php echo time(); ?>" class="embed-responsive-item" width="100%"
                           height="500px"></iframe>
                       </div>
 
                       <!-- Botón de descarga -->
                       <div class="mt-3">
-                        <a href="manuales/manual_jurado.pdf" download class="btn btn-primary" target="_blank">
+                        <a href="./manuales/manual_jurado.pdf?<?php echo time(); ?>" download class="btn btn-primary" target="_blank">
                           <i class="bi bi-download"></i> Descargar PDF
                         </a>
                       </div>
