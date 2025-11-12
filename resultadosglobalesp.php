@@ -140,7 +140,7 @@ foreach ($todos_proyectos as $proyecto) {
     $id_proyecto = $proyecto['ID_PROYECTO'];
 
     // CALCULAR PROMEDIO DEL PITCH CON JURADOS ACTIVOS
-    $valor_pitch = 0;
+    $promedio_jurados = 0;
     
     if ($id_actividad_70 !== null && isset($notas_jurados_por_proyecto[$id_proyecto])) {
         // 1. Sumar todas las notas de los jurados ACTIVOS para este proyecto
@@ -152,13 +152,11 @@ foreach ($todos_proyectos as $proyecto) {
         // 3. Calcular promedio dividiendo entre el número de jurados que calificaron
         if ($numero_jurados_que_calificaron > 0) {
             $promedio_jurados = $suma_notas_jurados / $numero_jurados_que_calificaron;
-        } else {
-            $promedio_jurados = 0;
         }
-        
-        // 4. Multiplicar por 70% para obtener el valor del pitch
-        $valor_pitch = $promedio_jurados * 0.70;
     }
+
+    // Calcular valor del pitch (70%)
+    $valor_pitch = $promedio_jurados * 0.70;
 
     // Calcular valor de la primera evaluación (30%)
     $valor_30 = 0;
@@ -176,8 +174,8 @@ foreach ($todos_proyectos as $proyecto) {
         $porcentaje = (int)$actividad['PORCENTAJE'];
 
         if ($id_actividad == $id_actividad_70) {
-            // Mostrar el valor pitch calculado (suma_notas/numero_jurados_activos * 0.70)
-            $proyectos_valores[$id_proyecto][$id_actividad] = $valor_pitch;
+            // CORRECCIÓN: Mostrar solo el promedio sin ponderar en la columna del pitch
+            $proyectos_valores[$id_proyecto][$id_actividad] = $promedio_jurados;
         } elseif ($id_actividad == $id_actividad_30) {
             // Mostrar el valor 30%
             $proyectos_valores[$id_proyecto][$id_actividad] = $valor_30;
@@ -415,7 +413,8 @@ $results = $todos_proyectos;
                   <div class="ms-3 mb-2">
                       <small>• Se suman todas las calificaciones individuales de los jurados activos</small><br>
                       <small>• Se divide entre el número de jurados activos que calificaron</small><br>
-                      <small>• Se multiplica por 0.70 (70%)</small><br>
+                      <small>• Se muestra el promedio sin ponderar en la tabla</small><br>
+                      <small>• Para la nota final se multiplica por 0.70 (70%)</small><br>
                       <small><em>Fórmula: (Suma notas individuales ÷ N° jurados) × 0.70</em></small>
                   </div>
                   
