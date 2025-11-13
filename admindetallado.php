@@ -46,14 +46,13 @@ $stmt_jurados_activos->execute();
 $result_jurados_activos = $stmt_jurados_activos->fetch(PDO::FETCH_ASSOC);
 $numero_jurados_activos = $result_jurados_activos['total_jurados_activos'];
 
-// Consulta para obtener las evaluaciones incluyendo actividades y la calificación final - SOLO JURADOS ACTIVOS
+// Consulta para obtener las evaluaciones de jurados activos
 $query = "
     SELECT CONCAT(u.NOMBRE, ' ', u.APELLIDO) AS JURADO, 
            p.PROYECTO AS PROYECTO, 
            a.NOM_ACTIVIDAD AS ACTIVIDAD, 
            a.PORCENTAJE AS PORCENTAJE,
-           c.CALIFICACION AS CALIFICACION_ACTIVIDAD, 
-           n.CALIFICACION AS CALIFICACION_FINAL
+           c.CALIFICACION AS CALIFICACION_ACTIVIDAD
     FROM NOTAS n
     JOIN USUARIO u ON u.ID_USUARIO = n.ID_USUARIO
     JOIN PROYECTO p ON p.ID_PROYECTO = n.ID_PROYECTO
@@ -66,23 +65,17 @@ $query = "
 $stmt = $pdo->prepare($query);
 $stmt->execute();
 
-// Crear arrays para almacenar las evaluaciones y las actividades
+// Crear arrays para almacenar las evaluaciones
 $evaluaciones = [];
 $jurados = []; // Para almacenar los nombres de los jurados
-$actividades = []; // Para almacenar las actividades y sus porcentajes
 
 // Recorrer los resultados
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    // Agrupar los datos por proyecto y actividad
-    $evaluaciones[$row['JURADO']][$row['PROYECTO']]['actividades'][$row['ACTIVIDAD']] = $row['CALIFICACION_ACTIVIDAD'];
-    
-    // Agregar la calificación final del proyecto
-    $evaluaciones[$row['JURADO']][$row['PROYECTO']]['calificacion_final'] = $row['CALIFICACION_FINAL'];
-    
-    // Agregar la actividad al array de actividades (si no existe)
-    if (!in_array($row['ACTIVIDAD'], $actividades)) {
-        $actividades[$row['ACTIVIDAD']] = $row['PORCENTAJE'];
-    }
+    // Agrupar los datos por jurado y proyecto
+    $evaluaciones[$row['JURADO']][$row['PROYECTO']][$row['ACTIVIDAD']] = [
+        'calificacion_bruta' => $row['CALIFICACION_ACTIVIDAD'],
+        'porcentaje' => $row['PORCENTAJE']
+    ];
 
     // Agregar el nombre del jurado al array de jurados (si no existe)
     if (!in_array($row['JURADO'], $jurados)) {
@@ -90,7 +83,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     }
 }
 
-// Consulta para obtener las actividades con id_permiso = 2, sus calificaciones y porcentajes
+// Consulta para obtener las actividades con id_permiso = 2
 $query_actividades_permiso = "
     SELECT p.PROYECTO AS PROYECTO, 
            a.NOM_ACTIVIDAD AS ACTIVIDAD, 
@@ -106,14 +99,56 @@ $query_actividades_permiso = "
 $stmt_actividades_permiso = $pdo->prepare($query_actividades_permiso);
 $stmt_actividades_permiso->execute();
 
-// Crear arrays para almacenar las actividades con permiso y sus calificaciones
+// Crear arrays para almacenar las actividades con permiso
 $actividades_permiso = [];
 while ($row = $stmt_actividades_permiso->fetch(PDO::FETCH_ASSOC)) {
-    // Guardar las actividades, porcentajes y sus calificaciones por proyecto
     $actividades_permiso[$row['PROYECTO']][$row['ACTIVIDAD']] = [
-        'calificacion' => $row['CALIFICACION_ACTIVIDAD'],
+        'calificacion_bruta' => $row['CALIFICACION_ACTIVIDAD'],
         'porcentaje' => $row['PORCENTAJE']
     ];
+}
+
+// Calcular la calificación final para cada jurado y proyecto
+foreach ($evaluaciones as $jurado => $proyectos) {
+    foreach ($proyectos as $proyecto => $actividades) {
+        $nota_pitch = 0;
+        $nota_primera_fase = 0;
+        
+        // Buscar las notas del Pitch y Primera Fase
+        foreach ($actividades as $actividad => $datos) {
+            if (stripos($actividad, 'pitch') !== false || $datos['porcentaje'] == 70) {
+                $nota_pitch = $datos['calificacion_bruta'];
+            }
+            if (stripos($actividad, 'PRIMERA FASE') !== false || $datos['porcentaje'] == 30) {
+                $nota_primera_fase = $datos['calificacion_bruta'];
+            }
+        }
+        
+        // Buscar también en actividades con permiso
+        if (isset($actividades_permiso[$proyecto])) {
+            foreach ($actividades_permiso[$proyecto] as $actividad_permiso => $datos_permiso) {
+                if (stripos($actividad_permiso, 'pitch') !== false || $datos_permiso['porcentaje'] == 70) {
+                    $nota_pitch = $datos_permiso['calificacion_bruta'];
+                }
+                if (stripos($actividad_permiso, 'PRIMERA FASE') !== false || $datos_permiso['porcentaje'] == 30) {
+                    $nota_primera_fase = $datos_permiso['calificacion_bruta'];
+                }
+            }
+        }
+        
+        // Calcular ponderaciones - PRIMERA FASE se multiplica por 30%
+        $pitch_ponderado = $nota_pitch;
+        $primera_fase_ponderada = $nota_primera_fase * 0.30;
+        $calificacion_final = $pitch_ponderado + $primera_fase_ponderada;
+        
+        // Guardar los resultados
+        $evaluaciones[$jurado][$proyecto]['calculo_final'] = [
+            'nota_pitch' => $nota_pitch,
+            'nota_primera_fase' => $nota_primera_fase,
+            'primera_fase_ponderada' => $primera_fase_ponderada,
+            'calificacion_final' => $calificacion_final
+        ];
+    }
 }
 
 ?>
@@ -315,72 +350,84 @@ while ($row = $stmt_actividades_permiso->fetch(PDO::FETCH_ASSOC)) {
                             <h5 class="card-title">Resultados por Proyecto</h5>
                             <p class="text-muted">Mostrando resultados de <?php echo $numero_jurados_activos; ?> jurados activos</p>
 
+                            <!-- ========== EXPLICACIÓN DETALLADA ========== -->
+                            <div class="alert alert-info mb-4 py-3" role="alert" style="font-size: 0.9rem;">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    <strong class="me-2">Cálculo Detallado - Resultados Específicos por Jurado:</strong>
+                                </div>
+                                <div class="ms-3">
+                                    <div class="mb-2">
+                                        <strong>Para cada jurado y proyecto:</strong>
+                                    </div>
+                                    
+                                    <div class="mb-1">
+                                        <strong>1. Evaluación Pitch (70%):</strong>
+                                    </div>
+                                    <div class="ms-3 mb-2">
+                                        <small>• Se toma la calificación bruta que el jurado asignó al pitch</small><br>
+                                        <small>• La nota ya viene ponderada al 70% desde el sistema</small><br>
+                                        <small><em>Valor: Calificación bruta del pitch (ya ponderada)</em></small>
+                                    </div>
+                                    
+                                    <div class="mb-1">
+                                        <strong>2. Primera Evaluación (30%):</strong>
+                                    </div>
+                                    <div class="ms-3 mb-2">
+                                        <small>• Se toma la calificación bruta de la primera fase</small><br>
+                                        <small>• Se multiplica por 0.30 (30%) para obtener el valor ponderado</small><br>
+                                        <small><em>Fórmula: Calificación primera fase × 0.30</em></small>
+                                    </div>
+                                    
+                                    <div class="mb-1">
+                                        <strong>3. Nota Final por Jurado:</strong>
+                                    </div>
+                                    <div class="ms-3 mb-2">
+                                        <small>• Suma directa del Pitch + Primera Fase ponderada</small><br>
+                                        <small>• Representa la evaluación completa de CADA jurado individualmente</small><br>
+                                        <small><em>Fórmula: Pitch + (Primera Fase × 30%)</em></small>
+                                    </div>
+                                </div>
+                            </div>
+
                             <?php
                             if (empty($jurados)) {
                                 echo "<p class='text-center'>No hay jurados activos con evaluaciones registradas.</p>";
                             } else {
                                 // Recorrer cada jurado para crear una tabla individual
                                 foreach ($jurados as $jurado) {
-                                    echo "<h5 style='font-weight: bold; margin-bottom: 15px;'>$jurado</h5>"; // Nombre del jurado en negrita y con margen
-                                    echo "<div class='table-responsive' style='max-width: 1000px;'>"; // Asegura que la tabla sea responsive y limita el ancho
-                                    echo "<table class='table table-bordered' style='font-size: 0.9rem;'>"; // Tamaño de fuente más pequeño
+                                    echo "<h5 style='font-weight: bold; margin-bottom: 15px;'>$jurado</h5>";
+                                    echo "<div class='table-responsive' style='max-width: 1000px;'>";
+                                    echo "<table class='table table-bordered' style='font-size: 0.9rem;'>";
                                     echo "<thead><tr><th scope='col'>Proyecto</th>";
-                                    
-                                    // Mostrar el nombre de las actividades con su porcentaje en el encabezado
-                                    foreach ($actividades as $actividad => $porcentaje) {
-                                        echo "<th scope='col'>{$actividad} ({$porcentaje}%)</th>";
-                                    }
-                                    
-                                    // Agregar columnas de actividades con id_permiso = 2 si hay resultados, con su porcentaje
-                                    if (!empty($actividades_permiso)) {
-                                        // Agregar el nombre y porcentaje de cada actividad con permiso 2
-                                        foreach (array_keys(current($actividades_permiso)) as $actividad_permiso) {
-                                            $porcentaje_permiso = current($actividades_permiso)[$actividad_permiso]['porcentaje'];
-                                            echo "<th scope='col'>{$actividad_permiso} ({$porcentaje_permiso}%)</th>";
-                                        }
-                                    }
-
-                                    // Agregar una columna para la calificación final
+                                    echo "<th scope='col'>Nota Pitch</th>";
+                                    echo "<th scope='col'>Nota 1ra Fase</th>";
+                                    echo "<th scope='col'>1ra Fase × 30%</th>";
                                     echo "<th scope='col'>Calificación Final</th>";
                                     echo "</tr></thead>";
                                     echo "<tbody>";
 
-                                    // Mostrar las calificaciones para cada proyecto y actividad evaluada por este jurado
+                                    // Mostrar las calificaciones para cada proyecto evaluado por este jurado
                                     if (isset($evaluaciones[$jurado])) {
-                                        foreach ($evaluaciones[$jurado] as $proyecto => $notas) {
-                                            echo "<tr>";
-                                            echo "<td>$proyecto</td>";
-
-                                            // Mostrar las calificaciones por actividad
-                                            foreach ($actividades as $actividad => $porcentaje) {
-                                                echo "<td>" . (isset($notas['actividades'][$actividad]) ? $notas['actividades'][$actividad] : 'N/A') . "</td>";
+                                        foreach ($evaluaciones[$jurado] as $proyecto => $datos) {
+                                            if (isset($datos['calculo_final'])) {
+                                                $calculo = $datos['calculo_final'];
+                                                echo "<tr>";
+                                                echo "<td>$proyecto</td>";
+                                                echo "<td>" . number_format($calculo['nota_pitch'], 2) . "</td>";
+                                                echo "<td>" . number_format($calculo['nota_primera_fase'], 2) . "</td>";
+                                                echo "<td>" . number_format($calculo['primera_fase_ponderada'], 2) . "</td>";
+                                                echo "<td><strong>" . number_format($calculo['calificacion_final'], 2) . "</strong></td>";
+                                                echo "</tr>";
                                             }
-
-                                            // Mostrar las calificaciones para actividades con id_permiso = 2 si las hay
-                                            if (isset($actividades_permiso[$proyecto])) {
-                                                foreach ($actividades_permiso[$proyecto] as $actividad_permiso => $datos_permiso) {
-                                                    echo "<td>{$datos_permiso['calificacion']}</td>";
-                                                }
-                                            } else {
-                                                // Si no hay calificaciones para las actividades con permiso, mostrar N/A
-                                                foreach (array_keys($actividades_permiso) as $actividad_permiso) {
-                                                    echo "<td>N/A</td>";
-                                                }
-                                            }
-
-                                            // Mostrar la calificación final
-                                            echo "<td>" . (isset($notas['calificacion_final']) ? $notas['calificacion_final'] : 'N/A') . "</td>";
-
-                                            echo "</tr>";
                                         }
                                     } else {
-                                        // Si el jurado no tiene calificaciones, mostrar un mensaje
-                                        echo "<tr><td colspan='" . (count($actividades) + count($actividades_permiso) + 2) . "'>No hay calificaciones disponibles para este jurado.</td></tr>";
+                                        echo "<tr><td colspan='5'>No hay calificaciones disponibles para este jurado.</td></tr>";
                                     }
 
                                     echo "</tbody></table>";
-                                    echo "</div>"; // Cerrar el div de table-responsive
-                                    echo "<br>"; // Espacio entre el nombre del jurado y la siguiente tabla
+                                    echo "</div>";
+                                    echo "<br>";
                                 }
                             }
                             ?>

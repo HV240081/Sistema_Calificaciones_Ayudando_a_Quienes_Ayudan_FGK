@@ -71,7 +71,7 @@ $stmt_jurados_activos->execute();
 $result_jurados_activos = $stmt_jurados_activos->fetch(PDO::FETCH_ASSOC);
 $numero_jurados_activos = $result_jurados_activos['total_jurados_activos'];
 
-// CONSULTA: Obtener las notas individuales de los JURADOS ACTIVOS para el pitch
+// CONSULTA MEJORADA: Obtener TODAS las notas individuales de los JURADOS ACTIVOS para el pitch
 $query_notas_pitch_jurados = "
 SELECT 
     p.ID_PROYECTO,
@@ -95,17 +95,30 @@ $stmt_pitch_jurados = $pdo->prepare($query_notas_pitch_jurados);
 $stmt_pitch_jurados->execute(['id_actividad_pitch' => $id_actividad_70]);
 $notas_pitch_jurados = $stmt_pitch_jurados->fetchAll(PDO::FETCH_ASSOC);
 
-// Organizar notas de jurados por proyecto
-$notas_jurados_por_proyecto = [];
+// Organizar notas de jurados por proyecto - CALCULAR PROMEDIO REAL
+$promedios_pitch_por_proyecto = [];
 foreach ($notas_pitch_jurados as $nota) {
     $id_proyecto = $nota['ID_PROYECTO'];
-    if (!isset($notas_jurados_por_proyecto[$id_proyecto])) {
-        $notas_jurados_por_proyecto[$id_proyecto] = [];
+    if (!isset($promedios_pitch_por_proyecto[$id_proyecto])) {
+        $promedios_pitch_por_proyecto[$id_proyecto] = [
+            'suma_notas' => 0,
+            'cantidad_jurados' => 0,
+            'promedio' => 0
+        ];
     }
-    $notas_jurados_por_proyecto[$id_proyecto][] = $nota['nota_jurado'];
+    $promedios_pitch_por_proyecto[$id_proyecto]['suma_notas'] += $nota['nota_jurado'];
+    $promedios_pitch_por_proyecto[$id_proyecto]['cantidad_jurados']++;
 }
 
-// Obtener promedios por proyecto y actividad
+// Calcular promedios finales
+foreach ($promedios_pitch_por_proyecto as $id_proyecto => $datos) {
+    if ($datos['cantidad_jurados'] > 0) {
+        $promedios_pitch_por_proyecto[$id_proyecto]['promedio'] = 
+            $datos['suma_notas'] / $datos['cantidad_jurados'];
+    }
+}
+
+// Obtener promedios por proyecto y actividad (para otras actividades)
 $query_promedio = "
 SELECT 
     c.ID_PROYECTO,
@@ -139,55 +152,50 @@ $notas_finales_calculadas = [];
 foreach ($todos_proyectos as $proyecto) {
     $id_proyecto = $proyecto['ID_PROYECTO'];
 
-    // CALCULAR PROMEDIO DEL PITCH CON JURADOS ACTIVOS
-    $promedio_jurados = 0;
-    
-    if ($id_actividad_70 !== null && isset($notas_jurados_por_proyecto[$id_proyecto])) {
-        // 1. Sumar todas las notas de los jurados ACTIVOS para este proyecto
-        $suma_notas_jurados = array_sum($notas_jurados_por_proyecto[$id_proyecto]);
-        
-        // 2. Contar cuántos jurados ACTIVOS calificaron este proyecto
-        $numero_jurados_que_calificaron = count($notas_jurados_por_proyecto[$id_proyecto]);
-        
-        // 3. Calcular promedio dividiendo entre el número de jurados que calificaron
-        if ($numero_jurados_que_calificaron > 0) {
-            $promedio_jurados = $suma_notas_jurados / $numero_jurados_que_calificaron;
-        }
-    }
+    // Inicializar suma total para nota final
+    $suma_ponderada_total = 0;
 
-    // Calcular valor del pitch (70%)
-    $valor_pitch = $promedio_jurados * 0.70;
-
-    // Calcular valor de la primera evaluación (30%)
-    $valor_30 = 0;
-    if ($id_actividad_30 !== null && isset($proyectos_promedios[$id_proyecto][$id_actividad_30])) {
-        $valor_30 = $proyectos_promedios[$id_proyecto][$id_actividad_30] * 0.30;
-    }
-
-    // Nota final = (promedio pitch * 0.70) + (promedio primera evaluacion * 0.30)
-    $nota_final = $valor_pitch + $valor_30;
-    $notas_finales_calculadas[$id_proyecto] = $nota_final;
-
-    // Para mostrar en la tabla
+    // Calcular valores para mostrar en tabla y para nota final
     foreach ($actividades as $actividad) {
         $id_actividad = $actividad['ID_ACTIVIDAD'];
         $porcentaje = (int)$actividad['PORCENTAJE'];
 
         if ($id_actividad == $id_actividad_70) {
-            // CORRECCIÓN: Mostrar solo el promedio sin ponderar en la columna del pitch
-            $proyectos_valores[$id_proyecto][$id_actividad] = $promedio_jurados;
-        } elseif ($id_actividad == $id_actividad_30) {
-            // Mostrar el valor 30%
-            $proyectos_valores[$id_proyecto][$id_actividad] = $valor_30;
-        } else {
-            // Otras actividades
-            if (isset($proyectos_promedios[$id_proyecto][$id_actividad])) {
-                $proyectos_valores[$id_proyecto][$id_actividad] = $proyectos_promedios[$id_proyecto][$id_actividad] * ($porcentaje / 100);
+            // Para el pitch: Usar el promedio calculado de TODOS los jurados activos
+            if (isset($promedios_pitch_por_proyecto[$id_proyecto])) {
+                $valor_pitch = $promedios_pitch_por_proyecto[$id_proyecto]['promedio'];
+                $proyectos_valores[$id_proyecto][$id_actividad] = $valor_pitch;
+                $suma_ponderada_total += $valor_pitch;
             } else {
-                $proyectos_valores[$id_proyecto][$id_actividad] = null;
+                $proyectos_valores[$id_proyecto][$id_actividad] = 0;
+                // No sumar nada si no hay calificaciones
+            }
+            
+        } elseif ($id_actividad == $id_actividad_30) {
+            // Para la primera evaluación (30%): Aplicar ponderación aquí
+            if (isset($proyectos_promedios[$id_proyecto][$id_actividad])) {
+                $valor_30 = $proyectos_promedios[$id_proyecto][$id_actividad] * ($porcentaje / 100);
+                $proyectos_valores[$id_proyecto][$id_actividad] = $valor_30;
+                $suma_ponderada_total += $valor_30;
+            } else {
+                $proyectos_valores[$id_proyecto][$id_actividad] = 0;
+                // No sumar nada si no hay calificaciones
+            }
+        } else {
+            // Otras actividades (si las hay)
+            if (isset($proyectos_promedios[$id_proyecto][$id_actividad])) {
+                $valor_ponderado = $proyectos_promedios[$id_proyecto][$id_actividad] * ($porcentaje / 100);
+                $proyectos_valores[$id_proyecto][$id_actividad] = $valor_ponderado;
+                $suma_ponderada_total += $valor_ponderado;
+            } else {
+                $proyectos_valores[$id_proyecto][$id_actividad] = 0;
+                // No sumar nada si no hay calificaciones
             }
         }
     }
+
+    // La nota final es la suma de todos los valores ponderados
+    $notas_finales_calculadas[$id_proyecto] = $suma_ponderada_total;
 }
 
 $results = $todos_proyectos;
@@ -397,45 +405,48 @@ $results = $todos_proyectos;
             <div class="card-body">
               <h5 class="card-title">Resultados Finales <span>| Globales</span></h5>
               <p class="text-muted">Cálculos basados en <?php echo $numero_jurados_activos; ?> jurados activos</p>
+              
+              <!-- Información de cálculo mejorada -->
               <div class="alert alert-info mb-3 py-3" role="alert" style="font-size: 0.9rem;">
-              <div class="d-flex align-items-center mb-2">
+                <div class="d-flex align-items-center mb-2">
                   <i class="bi bi-info-circle me-2"></i>
                   <strong class="me-2">Cálculo Detallado - Resultados Globales:</strong>
-              </div>
-              <div class="ms-3">
+                </div>
+                <div class="ms-3">
                   <div class="mb-2">
-                      <strong>Para cada proyecto:</strong>
+                    <strong>Para cada proyecto:</strong>
                   </div>
                   
                   <div class="mb-1">
-                      <strong>1. Evaluación Pitch (70%):</strong>
+                    <strong>1. Evaluación Pitch (70%):</strong>
                   </div>
                   <div class="ms-3 mb-2">
-                      <small>• Se suman todas las calificaciones individuales de los jurados activos</small><br>
-                      <small>• Se divide entre el número de jurados activos que calificaron</small><br>
-                      <small>• Se muestra el promedio sin ponderar en la tabla</small><br>
-                      <small>• Para la nota final se multiplica por 0.70 (70%)</small><br>
-                      <small><em>Fórmula: (Suma notas individuales ÷ N° jurados) × 0.70</em></small>
+                    <small>• Se toman TODAS las calificaciones de jurados activos</small><br>
+                    <small>• Se calcula el promedio: (Suma de notas) / (Número de jurados que calificaron)</small><br>
+                    <small>• La nota ya viene ponderada al 70% desde el sistema de calificación</small><br>
+                    <small><em>Fórmula: Promedio(notas_jurados_activos)</em></small>
                   </div>
                   
                   <div class="mb-1">
-                      <strong>2. Primera Evaluación (30%):</strong>
+                    <strong>2. Primera Evaluación (30%):</strong>
                   </div>
                   <div class="ms-3 mb-2">
-                      <small>• Se toma el promedio de calificaciones de esa actividad</small><br>
-                      <small>• Se multiplica por 0.30 (30%)</small><br>
-                      <small><em>Fórmula: Promedio actividad × 0.30</em></small>
+                    <small>• Se toma el promedio de calificaciones de esa actividad</small><br>
+                    <small>• Se aplica la ponderación del 30%</small><br>
+                    <small><em>Fórmula: Promedio actividad × 0.30</em></small>
                   </div>
                   
                   <div class="mb-1">
-                      <strong>3. Nota Final:</strong>
+                    <strong>3. Nota Final:</strong>
                   </div>
                   <div class="ms-3">
-                      <small>• Suma del Pitch (70%) + Primera Evaluación (30%)</small><br>
-                      <small><em>Fórmula: Valor Pitch + Valor Primera Evaluación</em></small>
+                    <small>• Suma del Pitch (promedio ponderado) + Primera Evaluación (ponderada)</small><br>
+                    <small><em>Fórmula: Promedio Pitch + (Promedio Primera Evaluación × 0.30)</em></small>
                   </div>
+
+                </div>
               </div>
-          </div>
+
               <table class="table table-bordered">
                 <thead>
                   <tr>
@@ -470,8 +481,8 @@ $results = $todos_proyectos;
                             // Mostrar el valor calculado (ya ponderado por porcentaje)
                             echo htmlspecialchars(number_format($proyectos_valores[$id_proyecto][$id_actividad], 2));
                           } else {
-                            // Si no hay calificación, mostrar 'N/A'
-                            echo 'N/A';
+                            // Si no hay calificación, mostrar '0.00'
+                            echo '0.00';
                           }
                           ?>
                         </td>
@@ -484,7 +495,7 @@ $results = $todos_proyectos;
                         if (isset($notas_finales_calculadas[$id_proyecto])) {
                             echo htmlspecialchars(number_format($notas_finales_calculadas[$id_proyecto], 2));
                         } else {
-                            echo 'N/A';
+                            echo '0.00';
                         }
                         ?>
                       </td>
