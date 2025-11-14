@@ -67,38 +67,47 @@ $stmt_jurados_activos->execute();
 $result_jurados_activos = $stmt_jurados_activos->fetch(PDO::FETCH_ASSOC);
 $numero_jurados_activos = $result_jurados_activos['total_jurados_activos'];
 
-// CONSULTA MODIFICADA: OBTENER EVALUACIONES SOLO DE JURADOS ACTIVOS
+// --- DEFINICIÓN DE LA ACTIVIDAD PITCH ---
+$actividad_pitch_id = 10; // Asumimos ID 10 para la Evaluación Pitch
+
+// CONSULTA MODIFICADA: OBTIENE CALIFICACION.CALIFICACION Y LA MAPEA AL JURADO
+// La nota se extrae de la tabla CALIFICACION y se vincula al JURADO que realizó los criterios
+// mediante las tablas de enlace (NOTA_CRITERIO_CALIFICACION y NOTA_CRITERIO).
 $query = "
-    SELECT CONCAT(u.NOMBRE, ' ', u.APELLIDO) AS JURADO, 
-           p.PROYECTO AS PROYECTO, 
-           n.CALIFICACION AS CALIFICACION, 
-           n.ID_NOTAS 
-    FROM NOTAS n 
-    JOIN USUARIO u ON u.ID_USUARIO = n.ID_USUARIO 
-    JOIN PROYECTO p ON p.ID_PROYECTO = n.ID_PROYECTO
-    WHERE u.ESTADO = 1  -- SOLO JURADOS ACTIVOS
-    ORDER BY 
-        CASE 
-            WHEN CONCAT(u.NOMBRE, ' ', u.APELLIDO) = 'Fernando Kriete' THEN 1
-            WHEN CONCAT(u.NOMBRE, ' ', u.APELLIDO) = 'José Giammatei' THEN 2
-            WHEN CONCAT(u.NOMBRE, ' ', u.APELLIDO) = 'Alexandra Araujo' THEN 3
-            WHEN CONCAT(u.NOMBRE, ' ', u.APELLIDO) = 'Francisco Pérez' THEN 4
-            WHEN CONCAT(u.NOMBRE, ' ', u.APELLIDO) = 'José Montalvo' THEN 5
-            WHEN CONCAT(u.NOMBRE, ' ', u.APELLIDO) = 'Juana Jule' THEN 6
-            ELSE 7
-        END, p.ID_PROYECTO, u.ID_USUARIO";
+    SELECT 
+        CONCAT(u.NOMBRE, ' ', u.APELLIDO) AS JURADO, 
+        p.PROYECTO AS PROYECTO, 
+        c.CALIFICACION AS CALIFICACION, -- <--- USAMOS LA NOTA FINAL DE LA TABLA CALIFICACION
+        u.ID_USUARIO AS JURADO_ID,
+        p.ID_PROYECTO
+    FROM CALIFICACION c 
+    JOIN PROYECTO p ON p.ID_PROYECTO = c.ID_PROYECTO
+    -- Hacemos el enlace a través de las notas de criterios para identificar al jurado
+    JOIN NOTA_CRITERIO_CALIFICACION ncc ON c.ID_CALIFICACION = ncc.ID_CALIFICACION
+    JOIN NOTA_CRITERIO nc ON ncc.ID_NOTA_CRITERIO = nc.ID_NOTACRITERIO
+    JOIN USUARIO u ON u.ID_USUARIO = nc.ID_USUARIO
+    
+    WHERE c.ID_ACTIVIDAD = :actividad_id -- FILTRAMOS SOLO POR LA ACTIVIDAD PITCH (ID 10)
+    AND u.ID_ROL IN (2, 3) 
+    AND u.ESTADO = 1 -- SOLO JURADOS ACTIVOS
+    GROUP BY p.PROYECTO, u.ID_USUARIO, c.CALIFICACION 
+    ORDER BY p.ID_PROYECTO, u.ID_USUARIO";
 
 // Ejecutar la consulta usando PDO
 $stmt = $pdo->prepare($query);
-$stmt->execute();
+// Pasamos el ID de la actividad como parámetro
+$stmt->execute(['actividad_id' => $actividad_pitch_id]);
 
 // Crear un array para almacenar las evaluaciones
 $evaluaciones = [];
 
-// Recorrer los resultados
+// Recorrer los resultados de calificaciones
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    // Agrupar los datos por proyecto
-    $evaluaciones[$row['PROYECTO']][$row['JURADO']] = $row['CALIFICACION'];
+    // La calificación_final ya es CALIFICACION.CALIFICACION
+    $calificacion_final = $row['CALIFICACION'];
+    
+    // Agrupar los datos por proyecto y jurado
+    $evaluaciones[$row['PROYECTO']][$row['JURADO']] = $calificacion_final;
 }
 
 // Obtener todos los proyectos para mostrar en la tabla
@@ -294,7 +303,7 @@ $proyectos_fijos = $stmt_proyectos->fetchAll(PDO::FETCH_ASSOC);
             <nav>
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="panel_admin.php">Panel</a></li>
-                    <li class="breadcrumb-item active">Resultados de Evaluación</li>
+                    <li class="breadcrumb-item active">Resultados Individuales</li>
                 </ol>
             </nav>
         </div><!-- End Page Title -->
@@ -304,8 +313,25 @@ $proyectos_fijos = $stmt_proyectos->fetchAll(PDO::FETCH_ASSOC);
                 <div class="col-lg-12">
                     <div class="card">
                         <div class="card-body">
-                            <h5 class="card-title">Resultados por Proyecto</h5>
+                            <h5 class="card-title">Resultados de Calificaciones - Evaluación Pitch</h5>
                             <p class="text-muted">Mostrando resultados de <?php echo $numero_jurados_activos; ?> jurados activos</p>
+                            
+                            <!-- ========== EXPLICACIÓN CÁLCULO INDIVIDUAL ========== -->
+                            <div class="alert alert-info mb-4" role="alert">
+                                <h4 class="alert-heading"><i class="bi bi-info-circle me-2"></i>Cálculo de Calificaciones Individuales</h4>
+                                <hr>
+                                <p class="mb-2"><strong>Fórmula para cada jurado:</strong></p>
+                                <div class="ms-3">
+                                    <p class="mb-1"><strong>Calificación Individual = (Suma de 6 criterios / 6) × 70%</strong></p>
+                                    <ul class="mb-2">
+                                        <li>Cada jurado califica los 6 criterios del pitch de 0 a 10 puntos</li>
+                                        <li>Se calcula el promedio simple de los 6 criterios</li>
+                                        <li>El resultado se multiplica por 0.70 (70%)</li>
+                                        <li>La calificación final se escala a 2 decimales</li>
+                                    </ul>
+                                </div>
+                                <p class="mb-0"><strong>Nota:</strong> Esta tabla muestra las calificaciones individuales de cada jurado para cada proyecto en la Evaluación Pitch.</p>
+                            </div>
 
                             <?php if (empty($jurados_orden_fijo)): ?>
                                 <p class="text-center">No hay jurados activos con evaluaciones registradas.</p>
@@ -335,7 +361,7 @@ $proyectos_fijos = $stmt_proyectos->fetchAll(PDO::FETCH_ASSOC);
                                                 // Verificar si existe calificación para este proyecto y jurado
                                                 $calificacion = '0.00';
                                                 if (isset($evaluaciones[$proyecto_nombre][$jurado_nombre])) {
-                                                    $calificacion = htmlspecialchars($evaluaciones[$proyecto_nombre][$jurado_nombre]);
+                                                    $calificacion = $evaluaciones[$proyecto_nombre][$jurado_nombre];
                                                     // Formatear a 2 decimales si es numérico
                                                     if (is_numeric($calificacion)) {
                                                         $calificacion = number_format($calificacion, 2);
